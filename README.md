@@ -16,7 +16,7 @@ Sistema para vender más con menos trabajo manual:
 
 ### Publicar un producto
 1. Entrá a `https://TU-SERVIDOR/panel` desde el celu.
-2. Subí la foto (mejor con fondo claro), poné nombre y precio. Opcional: precio anterior y detalles.
+2. Subí la foto (mejor con fondo claro), poné nombre y precio. Opcional: precio anterior, cuotas sin interés y detalles.
 3. Tocá **Generar publicación**.
 4. Descargá la imagen, copiá título y descripción, y pegalos en Marketplace.
 
@@ -30,7 +30,7 @@ Sistema para vender más con menos trabajo manual:
 No hacés nada. Cuando un cliente confirma la compra, te llega un WhatsApp con "🛒 NUEVA VENTA" y los datos, y queda guardada en la tabla `pedidos`.
 
 ### Cambiar precios o stock
-Supabase → **Table Editor** → `productos`. El bot usa siempre lo que esté ahí. Sin stock → poné `stock` en 0. Producto que ya no vendés → `activo` en false.
+Supabase → **Table Editor** → `productos`. El bot usa siempre lo que esté ahí. Sin stock → poné `stock` en 0. Cuotas sin interés → poné la cantidad en `cuotas_sin_interes` (0 = no tiene). Producto que ya no vendés → `activo` en false.
 
 ### Cambiar medios de pago, envíos, garantía o tu WhatsApp
 Editá el archivo `src/negocio.js`.

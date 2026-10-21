@@ -7,8 +7,10 @@ create table if not exists productos (
   precio numeric not null,
   stock integer not null default 0,
   descripcion text,
+  cuotas_sin_interes integer not null default 0, -- 0 = no tiene cuotas sin interés
   activo boolean not null default true
 );
+alter table productos add column if not exists cuotas_sin_interes integer not null default 0;
 
 -- Preguntas frecuentes (si ya la tenías, no se toca).
 create table if not exists faqs (
@@ -36,7 +38,7 @@ create table if not exists pedidos (
 );
 
 -- Ejemplo (borralo o cambialo por tus productos reales):
-insert into productos (nombre, precio, stock, descripcion) values
-  ('Auriculares inalámbricos Lenovo LP40 Pro', 45990, 5, 'Bluetooth 5.3, 30 hs de batería, negro y blanco'),
-  ('Smartwatch T900 Ultra', 39990, 3, 'Pantalla 2", llamadas, notificaciones, malla naranja'),
-  ('Cargador rápido 20W USB-C para iPhone', 14990, 10, 'Incluye cable USB-C a Lightning');
+insert into productos (nombre, precio, stock, descripcion, cuotas_sin_interes) values
+  ('Auriculares inalámbricos Lenovo LP40 Pro', 45990, 5, 'Bluetooth 5.3, 30 hs de batería, negro y blanco', 3),
+  ('Smartwatch T900 Ultra', 39990, 3, 'Pantalla 2", llamadas, notificaciones, malla naranja', 0),
+  ('Cargador rápido 20W USB-C para iPhone', 14990, 10, 'Incluye cable USB-C a Lightning', 0);

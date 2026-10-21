@@ -22,12 +22,13 @@ const LADO = 1080;
 
 // ---------- 1) Textos con IA ----------
 
-async function generarTextos({ nombre, precio, precioAnterior, detalles }) {
+async function generarTextos({ nombre, precio, precioAnterior, cuotas, detalles }) {
   const system = `Sos copywriter experto en Facebook Marketplace Argentina para ${negocio.nombre}, tienda de tecnología de ${negocio.ciudad}.
 Escribís en español rioplatense, claro y vendedor. Nada de mentiras ni promesas que no estén en los datos.`;
 
   const prompt = `Producto: ${nombre}
 Precio: ${formatearPrecio(precio)}${precioAnterior ? ` (antes ${formatearPrecio(precioAnterior)})` : ''}
+Cuotas sin interés: ${cuotas > 0 ? cuotas + ' cuotas sin interés' : 'NO tiene, no menciones cuotas sin interés'}
 Detalles que me pasó el dueño: ${detalles || 'ninguno'}
 Datos del negocio: ${negocio.mediosDePago}. ${negocio.envios}. ${negocio.garantia}.
 ${negocio.whatsapp ? 'WhatsApp: ' + negocio.whatsapp : ''}
@@ -125,8 +126,8 @@ async function generarImagen({ foto, precio, precioAnterior, frase, beneficios }
 
 // ---------- Todo junto ----------
 
-async function crearPublicacion({ foto, nombre, precio, precioAnterior, detalles }) {
-  const textos = await generarTextos({ nombre, precio, precioAnterior, detalles });
+async function crearPublicacion({ foto, nombre, precio, precioAnterior, cuotas, detalles }) {
+  const textos = await generarTextos({ nombre, precio, precioAnterior, cuotas, detalles });
   const imagen = await generarImagen({
     foto,
     precio,

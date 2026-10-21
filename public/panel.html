@@ -53,6 +53,8 @@
       <div><label for="precio">Precio</label><input id="precio" type="number" inputmode="numeric" placeholder="45990"></div>
       <div><label for="precioAnterior">Precio anterior (opcional)</label><input id="precioAnterior" type="number" inputmode="numeric" placeholder="59990"></div>
     </div>
+    <label for="cuotas">Cuotas sin interés (dejalo vacío si no tiene)</label>
+    <input id="cuotas" type="number" inputmode="numeric" placeholder="Ej: 3">
     <label for="detalles">Detalles (opcional: batería, colores, qué incluye...)</label>
     <textarea id="detalles" placeholder="Ej: Bluetooth 5.3, 30 hs de batería, colores negro y blanco, incluye cable"></textarea>
     <button class="principal" id="btnPublicar">Generar publicación</button>
@@ -115,7 +117,7 @@
     }
     const form = new FormData();
     form.append('foto', foto);
-    ['nombre', 'precio', 'precioAnterior', 'detalles'].forEach((c) => form.append(c, $(c).value));
+    ['nombre', 'precio', 'precioAnterior', 'cuotas', 'detalles'].forEach((c) => form.append(c, $(c).value));
     $('btnPublicar').disabled = true;
     $('btnPublicar').textContent = 'Creando... (unos segundos)';
     try {

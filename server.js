@@ -83,7 +83,7 @@ app.get('/panel', (req, res) => res.sendFile(path.join(__dirname, 'public', 'pan
 // Crea imagen + título + descripción para publicar en Marketplace
 app.post('/api/publicacion', chequearClave, subida.single('foto'), async (req, res) => {
   try {
-    const { nombre, precio, precioAnterior, detalles } = req.body;
+    const { nombre, precio, precioAnterior, cuotas, detalles } = req.body;
     if (!req.file || !nombre || !precio) {
       return res.status(400).json({ error: 'Faltan la foto, el nombre o el precio' });
     }
@@ -92,6 +92,7 @@ app.post('/api/publicacion', chequearClave, subida.single('foto'), async (req, r
       nombre,
       precio: Number(precio),
       precioAnterior: precioAnterior ? Number(precioAnterior) : null,
+      cuotas: Number(cuotas) || 0,
       detalles,
     });
     res.json({

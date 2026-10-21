@@ -71,6 +71,27 @@ app.post('/webhook', async (req, res) => {
 
 // ================= Panel (Marketplace) =================
 
+// "25.999" o "$25,999" -> 25999 (en Argentina el punto es separador de miles)
+function aNumero(valor) {
+  return Number(String(valor || '').replace(/\D/g, '')) || 0;
+}
+
+// Traduce los errores comunes a algo que se entienda desde el panel.
+function explicarError(error) {
+  const status = error.response?.status;
+  const mensaje = error.response?.data?.error?.message || error.message || '';
+  if (error.config?.url?.includes('anthropic.com')) {
+    if (status === 401) return 'La clave de Claude (CLAUDE_API_KEY) es incorrecta. Revisala en Render.';
+    if (/credit balance/i.test(mensaje)) return 'Tu cuenta de Claude no tiene saldo. Cargá crédito en console.anthropic.com → Billing.';
+    if (status === 429) return 'Claude está saturado o llegaste al límite. Probá de nuevo en un minuto.';
+    return `Error de Claude: ${mensaje}`;
+  }
+  if (/unsupported image format|Input buffer/i.test(mensaje)) {
+    return 'No se pudo leer la foto. Probá con otra en formato JPG o PNG.';
+  }
+  return `Error: ${mensaje}`;
+}
+
 function chequearClave(req, res, next) {
   if (!PANEL_PASSWORD) {
     return res.status(503).json({ error: 'Falta configurar PANEL_PASSWORD en el hosting' });
@@ -87,15 +108,15 @@ app.get('/panel', (req, res) => res.sendFile(path.join(__dirname, 'public', 'pan
 app.post('/api/publicacion', chequearClave, subida.single('foto'), async (req, res) => {
   try {
     const { nombre, precio, precioAnterior, cuotas, detalles } = req.body;
-    if (!req.file || !nombre || !precio) {
+    if (!req.file || !nombre || !aNumero(precio)) {
       return res.status(400).json({ error: 'Faltan la foto, el nombre o el precio' });
     }
     const pub = await crearPublicacion({
       foto: req.file.buffer,
       nombre,
-      precio: Number(precio),
-      precioAnterior: precioAnterior ? Number(precioAnterior) : null,
-      cuotas: Number(cuotas) || 0,
+      precio: aNumero(precio),
+      precioAnterior: aNumero(precioAnterior) || null,
+      cuotas: aNumero(cuotas),
       detalles,
     });
     res.json({
@@ -105,7 +126,7 @@ app.post('/api/publicacion', chequearClave, subida.single('foto'), async (req, r
     });
   } catch (error) {
     console.error('Error creando publicación:', error.response?.data || error.message);
-    res.status(500).json({ error: 'No se pudo crear la publicación. Revisá los logs.' });
+    res.status(500).json({ error: explicarError(error) });
   }
 });
 
@@ -120,7 +141,7 @@ app.post('/api/responder', chequearClave, async (req, res) => {
     res.json({ texto, venta });
   } catch (error) {
     console.error('Error respondiendo:', error.response?.data || error.message);
-    res.status(500).json({ error: 'No se pudo generar la respuesta.' });
+    res.status(500).json({ error: explicarError(error) });
   }
 });
 

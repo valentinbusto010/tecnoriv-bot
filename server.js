@@ -1,96 +1,126 @@
+require('dotenv').config();
+const path = require('path');
 const express = require('express');
 const axios = require('axios');
-const { createClient } = require('@supabase/supabase-js');
+const multer = require('multer');
+const { responderCliente } = require('./src/vendedor');
+const { crearPublicacion } = require('./src/publicacion');
+const { obtenerHistorial, guardarMensaje, guardarPedido } = require('./src/datos');
 
 const app = express();
 app.use(express.json());
+const subida = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
 
-const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
-const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
-const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
-const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_KEY;
+const { WHATSAPP_TOKEN, PHONE_NUMBER_ID, VERIFY_TOKEN, OWNER_PHONE, PANEL_PASSWORD } = process.env;
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+// ================= WhatsApp =================
+
+async function enviarWhatsApp(to, body) {
+  await axios.post(
+    `https://graph.facebook.com/v21.0/${PHONE_NUMBER_ID}/messages`,
+    { messaging_product: 'whatsapp', to, type: 'text', text: { body } },
+    { headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}`, 'Content-Type': 'application/json' } }
+  );
+}
 
 app.get('/webhook', (req, res) => {
-  const mode = req.query['hub.mode'];
-    const token = req.query['hub.verify_token'];
-      const challenge = req.query['hub.challenge'];
-        if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-            console.log('Webhook verificado correctamente');
-                res.status(200).send(challenge);
-                  } else {
-                      res.sendStatus(403);
-                        }
-                        });
+  if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === VERIFY_TOKEN) {
+    console.log('Webhook verificado correctamente');
+    return res.status(200).send(req.query['hub.challenge']);
+  }
+  res.sendStatus(403);
+});
 
-                        app.post('/webhook', async (req, res) => {
-                          try {
-                              const body = req.body;
-                                  if (body.object !== 'whatsapp_business_account') return res.sendStatus(404);
-                                      const entry = body.entry?.[0];
-                                          const change = entry?.changes?.[0];
-                                              const message = change?.value?.messages?.[0];
-                                                  if (!message || message.type !== 'text') return res.sendStatus(200);
-                                                      const from = message.from;
-                                                          const text = message.text.body.toLowerCase().trim();
-                                                              console.log(`Mensaje recibido de ${from}: ${text}`);
-                                                                  const { data: faqs } = await supabase.from('faqs').select('*');
-                                                                      let respuesta = null;
-                                                                          if (faqs) {
-                                                                                for (const faq of faqs) {
-                                                                                        const keywords = faq.keywords.toLowerCase().split(',').map(k => k.trim());
-                                                                                                const match = keywords.some(keyword => text.includes(keyword));
-                                                                                                        if (match) { respuesta = faq.respuesta; break; }
-                                                                                                              }
-                                                                                                                  }
-                                                                                                                      if (!respuesta) {
-                                                                                                                            const claudeRes = await axios.post(
-                                                                                                                                    'https://api.anthropic.com/v1/messages',
-                                                                                                                                            {
-                                                                                                                                                      model: 'claude-3-haiku-20240307',
-                                                                                                                                                                max_tokens: 300,
-                                                                                                                                                                          system: 'Sos el asistente virtual de TecnoRiv, una tienda de tecnologia. Responde de forma amigable, breve y en espanol rioplatense. Si no sabes algo, deci que vas a consultar con el equipo.',
-                                                                                                                                                                                    messages: [{ role: 'user', content: text }]
-                                                                                                                                                                                            },
-                                                                                                                                                                                                    {
-                                                                                                                                                                                                              headers: {
-                                                                                                                                                                                                                          'x-api-key': CLAUDE_API_KEY,
-                                                                                                                                                                                                                                      'anthropic-version': '2023-06-01',
-                                                                                                                                                                                                                                                  'Content-Type': 'application/json'
-                                                                                                                                                                                                                                                            }
-                                                                                                                                                                                                                                                                    }
-                                                                                                                                                                                                                                                                          );
-                                                                                                                                                                                                                                                                                respuesta = claudeRes.data.content[0].text;
-                                                                                                                                                                                                                                                                                    }
-                                                                                                                                                                                                                                                                                        await axios.post(
-                                                                                                                                                                                                                                                                                              `https://graph.facebook.com/v19.0/${PHONE_NUMBER_ID}/messages`,
-                                                                                                                                                                                                                                                                                                    {
-                                                                                                                                                                                                                                                                                                            messaging_product: 'whatsapp',
-                                                                                                                                                                                                                                                                                                                    to: from,
-                                                                                                                                                                                                                                                                                                                            type: 'text',
-                                                                                                                                                                                                                                                                                                                                    text: { body: respuesta }
-                                                                                                                                                                                                                                                                                                                                          },
-                                                                                                                                                                                                                                                                                                                                                {
-                                                                                                                                                                                                                                                                                                                                                        headers: {
-                                                                                                                                                                                                                                                                                                                                                                  Authorization: `Bearer ${WHATSAPP_TOKEN}`,
-                                                                                                                                                                                                                                                                                                                                                                            'Content-Type': 'application/json'
-                                                                                                                                                                                                                                                                                                                                                                                    }
-                                                                                                                                                                                                                                                                                                                                                                                          }
-                                                                                                                                                                                                                                                                                                                                                                                              );
-                                                                                                                                                                                                                                                                                                                                                                                                  console.log(`Respuesta enviada a ${from}`);
-                                                                                                                                                                                                                                                                                                                                                                                                      res.sendStatus(200);
-                                                                                                                                                                                                                                                                                                                                                                                                        } catch (error) {
-                                                                                                                                                                                                                                                                                                                                                                                                            console.error('Error:', error.response?.data || error.message);
-                                                                                                                                                                                                                                                                                                                                                                                                                res.sendStatus(500);
-                                                                                                                                                                                                                                                                                                                                                                                                                  }
-                                                                                                                                                                                                                                                                                                                                                                                                                  });
-                                                                                                                                                                                                                                                                                                                                                                                                                  
-                                                                                                                                                                                                                                                                                                                                                                                                                  app.get('/', (req, res) => {
-                                                                                                                                                                                                                                                                                                                                                                                                                    res.send('TecnoRiv Bot activo!');
-                                                                                                                                                                                                                                                                                                                                                                                                                    });
-                                                                                                                                                                                                                                                                                                                                                                                                                    
-                                                                                                                                                                                                                                                                                                                                                                                                                    const PORT = process.env.PORT || 3000;
-                                                                                                                                                                                                                                                                                                                                                                                                                    app.listen(PORT, () => console.log(`Servidor corriendo en puerto ${PORT}`));
+const procesados = new Set(); // evita responder dos veces si Meta reenvía el mismo mensaje
+
+app.post('/webhook', async (req, res) => {
+  res.sendStatus(200); // respondemos a Meta al instante, después procesamos
+
+  try {
+    if (req.body.object !== 'whatsapp_business_account') return;
+    const message = req.body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+    if (!message || message.type !== 'text' || procesados.has(message.id)) return;
+    procesados.add(message.id);
+    if (procesados.size > 1000) procesados.clear();
+
+    const from = message.from;
+    const text = message.text.body.trim();
+    console.log(`Mensaje de ${from}: ${text}`);
+
+    const historial = await obtenerHistorial(from);
+    await guardarMensaje(from, 'user', text);
+    const { texto, venta } = await responderCliente([...historial, { role: 'user', content: text }]);
+
+    await enviarWhatsApp(from, texto);
+    await guardarMensaje(from, 'assistant', texto);
+    console.log(`Respuesta enviada a ${from}`);
+
+    if (venta) {
+      console.log(`VENTA CERRADA con ${from}: ${venta}`);
+      await guardarPedido(from, venta);
+      if (OWNER_PHONE) {
+        await enviarWhatsApp(OWNER_PHONE, `🛒 NUEVA VENTA\nCliente: +${from}\n${venta}`).catch((e) =>
+          console.error('No se pudo avisar al dueño:', e.response?.data?.error?.message || e.message)
+        );
+      }
+    }
+  } catch (error) {
+    console.error('Error:', error.response?.data || error.message);
+  }
+});
+
+// ================= Panel (Marketplace) =================
+
+function chequearClave(req, res, next) {
+  if (PANEL_PASSWORD && req.get('x-panel-key') !== PANEL_PASSWORD) {
+    return res.status(401).json({ error: 'Contraseña incorrecta' });
+  }
+  next();
+}
+
+app.get('/panel', (req, res) => res.sendFile(path.join(__dirname, 'public', 'panel.html')));
+
+// Crea imagen + título + descripción para publicar en Marketplace
+app.post('/api/publicacion', chequearClave, subida.single('foto'), async (req, res) => {
+  try {
+    const { nombre, precio, precioAnterior, detalles } = req.body;
+    if (!req.file || !nombre || !precio) {
+      return res.status(400).json({ error: 'Faltan la foto, el nombre o el precio' });
+    }
+    const pub = await crearPublicacion({
+      foto: req.file.buffer,
+      nombre,
+      precio: Number(precio),
+      precioAnterior: precioAnterior ? Number(precioAnterior) : null,
+      detalles,
+    });
+    res.json({
+      titulo: pub.titulo,
+      descripcion: pub.descripcion,
+      imagen: 'data:image/jpeg;base64,' + pub.imagen.toString('base64'),
+    });
+  } catch (error) {
+    console.error('Error creando publicación:', error.response?.data || error.message);
+    res.status(500).json({ error: 'No se pudo crear la publicación. Revisá los logs.' });
+  }
+});
+
+// Sugiere la respuesta para una consulta que llegó por Marketplace
+app.post('/api/responder', chequearClave, async (req, res) => {
+  try {
+    const { conversacion } = req.body; // [{role, content}]
+    if (!Array.isArray(conversacion) || !conversacion.length) {
+      return res.status(400).json({ error: 'Pegá el mensaje del cliente' });
+    }
+    const { texto, venta } = await responderCliente(conversacion);
+    res.json({ texto, venta });
+  } catch (error) {
+    console.error('Error respondiendo:', error.response?.data || error.message);
+    res.status(500).json({ error: 'No se pudo generar la respuesta.' });
+  }
+});
+
+app.get('/', (req, res) => res.send('TecnoRiv Bot activo! Panel en /panel'));
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Servidor corriendo en puerto ${PORT}`));

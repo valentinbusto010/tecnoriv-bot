@@ -72,7 +72,10 @@ app.post('/webhook', async (req, res) => {
 // ================= Panel (Marketplace) =================
 
 function chequearClave(req, res, next) {
-  if (PANEL_PASSWORD && req.get('x-panel-key') !== PANEL_PASSWORD) {
+  if (!PANEL_PASSWORD) {
+    return res.status(503).json({ error: 'Falta configurar PANEL_PASSWORD en el hosting' });
+  }
+  if (req.get('x-panel-key') !== PANEL_PASSWORD) {
     return res.status(401).json({ error: 'Contraseña incorrecta' });
   }
   next();

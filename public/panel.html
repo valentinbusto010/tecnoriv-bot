@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel Tecno Riv</title>
+<style>
+  :root { --fondo:#0B1020; --tarjeta:#151C35; --acento:#00E0FF; --texto:#EEF2FF; --gris:#A9B4D0; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,sans-serif; background:var(--fondo); color:var(--texto); }
+  main { max-width:720px; margin:0 auto; padding:16px; }
+  h1 { font-size:22px; margin:8px 0 16px; } h1 span { color:var(--acento); }
+  .tabs { display:flex; gap:8px; margin-bottom:16px; }
+  .tabs button { flex:1; background:var(--tarjeta); color:var(--gris); border:1px solid #2A3460; }
+  .tabs button.activa { color:var(--fondo); background:var(--acento); }
+  section { background:var(--tarjeta); border-radius:14px; padding:16px; display:none; }
+  section.activa { display:block; }
+  label { display:block; font-size:14px; color:var(--gris); margin:12px 0 4px; }
+  input, textarea { width:100%; padding:12px; border-radius:10px; border:1px solid #2A3460; background:#0F1530; color:var(--texto); font-size:16px; font-family:inherit; }
+  textarea { min-height:90px; resize:vertical; }
+  button { padding:12px 16px; border:0; border-radius:10px; font-size:16px; font-weight:600; cursor:pointer; }
+  .principal { width:100%; margin-top:16px; background:var(--acento); color:var(--fondo); }
+  .secundario { background:#2A3460; color:var(--texto); margin-top:8px; }
+  button:disabled { opacity:.5; }
+  .fila { display:flex; gap:12px; } .fila > div { flex:1; }
+  .resultado { margin-top:20px; }
+  .resultado img { width:100%; border-radius:12px; display:block; }
+  .caja { white-space:pre-wrap; background:#0F1530; border-radius:10px; padding:12px; margin-top:6px; }
+  .error { color:#FF7B7B; margin-top:12px; }
+  .burbuja { padding:10px 12px; border-radius:12px; margin:6px 0; max-width:85%; white-space:pre-wrap; }
+  .cliente { background:#2A3460; } .bot { background:#0E3B47; margin-left:auto; }
+  .venta { background:#14532D; padding:10px; border-radius:10px; margin-top:8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Panel <span>Tecno Riv</span></h1>
+
+  <label for="clave">Contraseña del panel</label>
+  <input id="clave" type="password" placeholder="La que pusiste en PANEL_PASSWORD">
+
+  <div class="tabs" style="margin-top:16px">
+    <button class="activa" data-tab="publicar">1. Crear publicación</button>
+    <button data-tab="responder">2. Responder consulta</button>
+  </div>
+
+  <section id="publicar" class="activa">
+    <label for="foto">Foto del producto (sacala con fondo claro)</label>
+    <input id="foto" type="file" accept="image/*">
+    <label for="nombre">Nombre del producto</label>
+    <input id="nombre" placeholder="Ej: Auriculares inalámbricos Lenovo LP40 Pro">
+    <div class="fila">
+      <div><label for="precio">Precio</label><input id="precio" type="number" inputmode="numeric" placeholder="45990"></div>
+      <div><label for="precioAnterior">Precio anterior (opcional)</label><input id="precioAnterior" type="number" inputmode="numeric" placeholder="59990"></div>
+    </div>
+    <label for="cuotas">Cuotas sin interés (dejalo vacío si no tiene)</label>
+    <input id="cuotas" type="number" inputmode="numeric" placeholder="Ej: 3">
+    <label for="detalles">Detalles (opcional: batería, colores, qué incluye...)</label>
+    <textarea id="detalles" placeholder="Ej: Bluetooth 5.3, 30 hs de batería, colores negro y blanco, incluye cable"></textarea>
+    <button class="principal" id="btnPublicar">Generar publicación</button>
+    <div class="error" id="errPublicar"></div>
+
+    <div class="resultado" id="resPublicar" hidden>
+      <img id="imgRes" alt="Imagen para Marketplace">
+      <a id="descargar" download="tecnoriv.jpg"><button class="secundario">⬇ Descargar imagen</button></a>
+      <label>Título</label>
+      <div class="caja" id="tituloRes"></div>
+      <button class="secundario" data-copiar="tituloRes">Copiar título</button>
+      <label>Descripción</label>
+      <div class="caja" id="descRes"></div>
+      <button class="secundario" data-copiar="descRes">Copiar descripción</button>
+    </div>
+  </section>
+
+  <section id="responder">
+    <p style="color:var(--gris);margin-top:0">Pegá lo que te escribió el cliente en Marketplace. Copiá la respuesta y mandásela. Seguí pegando sus respuestas: el panel recuerda la charla.</p>
+    <div id="chat"></div>
+    <label for="msgCliente">Mensaje del cliente</label>
+    <textarea id="msgCliente" placeholder="Ej: Hola, sigue disponible? Hacen envíos?"></textarea>
+    <button class="principal" id="btnResponder">Sugerir respuesta</button>
+    <button class="secundario" id="btnNueva">Nueva conversación</button>
+    <div class="error" id="errResponder"></div>
+  </section>
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  try { $('clave').value = localStorage.getItem('clavePanel') || ''; } catch (e) {}
+  $('clave').addEventListener('change', () => { try { localStorage.setItem('clavePanel', $('clave').value); } catch (e) {} });
+
+  document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll('.tabs button, section').forEach((el) => el.classList.remove('activa'));
+    b.classList.add('activa');
+    $(b.dataset.tab).classList.add('activa');
+  }));
+
+  document.querySelectorAll('[data-copiar]').forEach((b) => b.addEventListener('click', async () => {
+    await navigator.clipboard.writeText($(b.dataset.copiar).textContent);
+    b.textContent = '¡Copiado!';
+    setTimeout(() => (b.textContent = b.dataset.copiar === 'tituloRes' ? 'Copiar título' : 'Copiar descripción'), 1500);
+  }));
+
+  async function pedir(url, opciones) {
+    opciones.headers = { ...(opciones.headers || {}), 'x-panel-key': $('clave').value };
+    const r = await fetch(url, opciones);
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Error');
+    return data;
+  }
+
+  $('btnPublicar').addEventListener('click', async () => {
+    $('errPublicar').textContent = '';
+    const foto = $('foto').files[0];
+    if (!foto || !$('nombre').value || !$('precio').value) {
+      $('errPublicar').textContent = 'Cargá la foto, el nombre y el precio.';
+      return;
+    }
+    const form = new FormData();
+    form.append('foto', foto);
+    ['nombre', 'precio', 'precioAnterior', 'cuotas', 'detalles'].forEach((c) => form.append(c, $(c).value));
+    $('btnPublicar').disabled = true;
+    $('btnPublicar').textContent = 'Creando... (unos segundos)';
+    try {
+      const data = await pedir('/api/publicacion', { method: 'POST', body: form });
+      $('imgRes').src = data.imagen;
+      $('descargar').href = data.imagen;
+      $('tituloRes').textContent = data.titulo;
+      $('descRes').textContent = data.descripcion;
+      $('resPublicar').hidden = false;
+      $('resPublicar').scrollIntoView({ behavior: 'smooth' });
+    } catch (e) {
+      $('errPublicar').textContent = e.message;
+    } finally {
+      $('btnPublicar').disabled = false;
+      $('btnPublicar').textContent = 'Generar publicación';
+    }
+  });
+
+  let conversacion = [];
+  function dibujarChat(venta) {
+    $('chat').innerHTML = '';
+    conversacion.forEach((m) => {
+      const d = document.createElement('div');
+      d.className = 'burbuja ' + (m.role === 'user' ? 'cliente' : 'bot');
+      d.textContent = m.content;
+      if (m.role === 'assistant') {
+        d.title = 'Tocá para copiar';
+        d.style.cursor = 'pointer';
+        d.addEventListener('click', () => navigator.clipboard.writeText(m.content));
+      }
+      $('chat').appendChild(d);
+    });
+    if (venta) {
+      const v = document.createElement('div');
+      v.className = 'venta';
+      v.textContent = '🛒 Venta cerrada: ' + venta;
+      $('chat').appendChild(v);
+    }
+  }
+
+  $('btnResponder').addEventListener('click', async () => {
+    $('errResponder').textContent = '';
+    const msg = $('msgCliente').value.trim();
+    if (!msg) return;
+    conversacion.push({ role: 'user', content: msg });
+    $('btnResponder').disabled = true;
+    try {
+      const data = await pedir('/api/responder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversacion }),
+      });
+      conversacion.push({ role: 'assistant', content: data.texto });
+      $('msgCliente').value = '';
+      dibujarChat(data.venta);
+      navigator.clipboard.writeText(data.texto).catch(() => {});
+    } catch (e) {
+      conversacion.pop();
+      $('errResponder').textContent = e.message;
+    } finally {
+      $('btnResponder').disabled = false;
+    }
+  });
+
+  $('btnNueva').addEventListener('click', () => { conversacion = []; dibujarChat(); });
+</script>
+</body>
+</html>

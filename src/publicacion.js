@@ -39,7 +39,7 @@ Generá:
 - frase_imagen: gancho corto para la imagen, máximo 26 caracteres, sin emojis (ej: "Tu música sin cables").
 - beneficios: exactamente 3 beneficios para la imagen, máximo 18 caracteres cada uno, sin emojis (ej: "Batería 30 hs").`;
 
-  return generarEstructurado(system, prompt, 'publicacion', {
+  return generarEstructurado(system, prompt, {
     type: 'object',
     properties: {
       titulo: { type: 'string' },

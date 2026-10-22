@@ -15,27 +15,35 @@ async function llamarClaude(body) {
   return res.data;
 }
 
-async function responderChat(system, mensajes) {
-  const data = await llamarClaude({
-    model: MODELO_CHAT,
-    max_tokens: 400,
-    system,
-    messages: mensajes,
-  });
+function textoDe(data) {
+  if (data.stop_reason === 'refusal') throw new Error('Claude no quiso responder ese mensaje');
   return data.content.find((b) => b.type === 'text')?.text.trim() || '';
 }
 
-// Obliga a Claude a devolver datos con un formato fijo (via tool use).
-async function generarEstructurado(system, prompt, nombreTool, schema) {
+async function responderChat(system, mensajes) {
+  const data = await llamarClaude({
+    model: MODELO_CHAT,
+    max_tokens: 2000, // incluye el razonamiento interno del modelo
+    output_config: { effort: 'low' }, // respuestas rápidas y baratas
+    system,
+    messages: mensajes,
+  });
+  return textoDe(data);
+}
+
+// Obliga a Claude a devolver un JSON con un formato fijo (structured outputs).
+async function generarEstructurado(system, prompt, schema) {
   const data = await llamarClaude({
     model: MODELO_TEXTOS,
-    max_tokens: 1500,
+    max_tokens: 6000,
+    output_config: {
+      effort: 'medium',
+      format: { type: 'json_schema', schema: { ...schema, additionalProperties: false } },
+    },
     system,
-    tools: [{ name: nombreTool, description: 'Devuelve el resultado', input_schema: schema }],
-    tool_choice: { type: 'tool', name: nombreTool },
     messages: [{ role: 'user', content: prompt }],
   });
-  return data.content.find((b) => b.type === 'tool_use').input;
+  return JSON.parse(textoDe(data));
 }
 
 module.exports = { responderChat, generarEstructurado };

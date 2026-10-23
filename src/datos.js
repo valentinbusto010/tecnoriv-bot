@@ -22,8 +22,10 @@ async function estadoCatalogo() {
   }
   const { count, error } = await supabase.from('productos').select('*', { count: 'exact', head: true }).eq('activo', true);
   if (error) return { ok: false, motivo: `Supabase respondió: ${error.message}` };
-  if (!count) return { ok: false, motivo: 'La tabla productos está vacía en este proyecto de Supabase.' };
-  return { ok: true, productos: count };
+  // El código del proyecto está en la URL: https://<codigo>.supabase.co
+  const proyecto = new URL(process.env.SUPABASE_URL).hostname.split('.')[0];
+  if (!count) return { ok: false, motivo: `La tabla productos está vacía en el proyecto "${proyecto}" de Supabase.` };
+  return { ok: true, productos: count, proyecto };
 }
 
 async function obtenerProductos() {

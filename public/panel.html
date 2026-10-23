@@ -38,6 +38,7 @@
 
   <label for="clave">Contraseña del panel</label>
   <input id="clave" type="password" placeholder="La que pusiste en PANEL_PASSWORD">
+  <div id="estado" style="font-size:14px;margin-top:8px"></div>
 
   <div class="tabs" style="margin-top:16px">
     <button class="activa" data-tab="publicar">1. Crear publicación</button>
@@ -87,6 +88,19 @@
   const $ = (id) => document.getElementById(id);
   try { $('clave').value = localStorage.getItem('clavePanel') || ''; } catch (e) {}
   $('clave').addEventListener('change', () => { try { localStorage.setItem('clavePanel', $('clave').value); } catch (e) {} });
+
+  // Muestra si el bot está leyendo el catálogo de Supabase
+  async function revisarEstado() {
+    if (!$('clave').value) return;
+    try {
+      const r = await fetch('/api/estado', { headers: { 'x-panel-key': $('clave').value } });
+      const d = await r.json();
+      $('estado').style.color = d.ok ? '#6EE7A0' : '#FF7B7B';
+      $('estado').textContent = d.ok ? `✅ Catálogo conectado: ${d.productos} productos` : `⚠️ ${d.motivo || d.error}`;
+    } catch (e) {}
+  }
+  $('clave').addEventListener('change', revisarEstado);
+  revisarEstado();
 
   document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => {
     document.querySelectorAll('.tabs button, section').forEach((el) => el.classList.remove('activa'));

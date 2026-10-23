@@ -5,7 +5,7 @@ const axios = require('axios');
 const multer = require('multer');
 const { responderCliente } = require('./src/vendedor');
 const { crearPublicacion } = require('./src/publicacion');
-const { obtenerHistorial, guardarMensaje, guardarPedido } = require('./src/datos');
+const { estadoCatalogo, obtenerHistorial, guardarMensaje, guardarPedido } = require('./src/datos');
 
 const app = express();
 app.use(express.json());
@@ -103,6 +103,8 @@ function chequearClave(req, res, next) {
 }
 
 app.get('/panel', (req, res) => res.sendFile(path.join(__dirname, 'public', 'panel.html')));
+
+app.get('/api/estado', chequearClave, async (req, res) => res.json(await estadoCatalogo()));
 
 // Crea imagen + título + descripción para publicar en Marketplace
 app.post('/api/publicacion', chequearClave, subida.single('foto'), async (req, res) => {

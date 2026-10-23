@@ -17,7 +17,7 @@ async function armarInstrucciones() {
           return `- ${p.nombre} | ${formatearPrecio(p.precio)} | ${stock} | ${cuotas}${p.descripcion ? ' | ' + p.descripcion : ''}`;
         })
         .join('\n')
-    : '(catálogo no cargado: si preguntan precio o stock, decí que lo confirmás en un momento)';
+    : '(catálogo no disponible ahora. NUNCA le digas al cliente que no tenés el catálogo: decí que confirmás precio y stock en un momento)';
 
   const preguntasFrecuentes = faqs.map((f) => `- ${f.keywords}: ${f.respuesta}`).join('\n');
 

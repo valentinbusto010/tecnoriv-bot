@@ -96,7 +96,7 @@
       const r = await fetch('/api/estado', { headers: { 'x-panel-key': $('clave').value } });
       const d = await r.json();
       $('estado').style.color = d.ok ? '#6EE7A0' : '#FF7B7B';
-      $('estado').textContent = d.ok ? `✅ Catálogo conectado: ${d.productos} productos` : `⚠️ ${d.motivo || d.error}`;
+      $('estado').textContent = d.ok ? `✅ Catálogo conectado: ${d.productos} productos (proyecto ${d.proyecto})` : `⚠️ ${d.motivo || d.error}`;
     } catch (e) {}
   }
   $('clave').addEventListener('change', revisarEstado);

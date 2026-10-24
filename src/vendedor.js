@@ -6,15 +6,16 @@ function formatearPrecio(n) {
   return '$' + Math.round(Number(n)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 }
 
-async function armarInstrucciones() {
-  const [productos, faqs] = await Promise.all([obtenerProductos(), obtenerFaqs()]);
+async function armarInstrucciones(productos) {
+  const faqs = await obtenerFaqs();
 
   const catalogo = productos.length
     ? productos
         .map((p) => {
           const stock = p.stock > 0 ? `stock: ${p.stock}` : 'SIN STOCK';
           const cuotas = p.cuotas_sin_interes > 0 ? `${p.cuotas_sin_interes} cuotas sin interés` : 'sin cuotas sin interés';
-          return `- ${p.nombre} | ${formatearPrecio(p.precio)} | ${stock} | ${cuotas}${p.descripcion ? ' | ' + p.descripcion : ''}`;
+          const foto = p.imagen_url ? ' | tiene foto' : '';
+          return `- ${p.nombre} | ${formatearPrecio(p.precio)} | ${stock} | ${cuotas}${foto}${p.descripcion ? ' | ' + p.descripcion : ''}`;
         })
         .join('\n')
     : '(catálogo no disponible ahora. NUNCA le digas al cliente que no tenés el catálogo: decí que confirmás precio y stock en un momento)';
@@ -44,7 +45,9 @@ CÓMO VENDÉS:
 8. Antes de cerrar, confirmá el pedido en un mensaje corto: producto, precio, entrega y pago. Cuando el cliente dice que sí, agregá al final de tu mensaje exactamente:
 [VENTA: producto, precio, nombre, envío con dirección o retiro, medio de pago]
 
-FOTOS: si el cliente manda una foto, identificá qué producto es y buscá el más parecido en el catálogo. Si no lo tenemos, decilo y ofrecé una alternativa. Si no se entiende la foto, preguntá qué producto busca.
+MANDAR FOTOS: si el cliente pregunta por un producto concreto que en el catálogo dice "tiene foto", agregá al final de tu mensaje [FOTO: nombre exacto del producto como figura en el catálogo]. Máximo 2 fotos por mensaje. Mandá la foto solo la primera vez que hablás de ese producto en la conversación, o si el cliente la pide.
+
+FOTOS DEL CLIENTE: si el cliente manda una foto, identificá qué producto es y buscá el más parecido en el catálogo. Si no lo tenemos, decilo y ofrecé una alternativa. Si no se entiende la foto, preguntá qué producto busca.
 
 PASAR CON UNA PERSONA: en estos casos decile al cliente que lo pasás con alguien del equipo que le responde enseguida, y agregá al final de tu mensaje exactamente [HUMANO: motivo corto]:
 - Pide hablar con una persona.
@@ -67,7 +70,7 @@ DATOS DEL NEGOCIO:
 - Garantía: ${negocio.garantia}
 - Horario: ${negocio.horario}
 
-CATÁLOGO (producto | precio | stock | cuotas | detalle):
+CATÁLOGO (producto | precio | stock | cuotas | foto | detalle):
 ${catalogo}
 ${preguntasFrecuentes ? '\nPREGUNTAS FRECUENTES:\n' + preguntasFrecuentes : ''}`;
 }
@@ -87,9 +90,10 @@ function ordenarHistorial(historial) {
 
 // historial: [{role:'user'|'assistant', content}] terminando en el mensaje del cliente.
 // imagen (opcional): { base64, mimeType } de una foto que mandó el cliente en el último mensaje.
-// Devuelve { texto, venta, humano }: venta si el cliente confirmó la compra, humano si hay que derivarlo.
+// Devuelve { texto, venta, humano, fotos }: venta si el cliente confirmó la compra, humano si hay que derivarlo.
 async function responderCliente(historial, imagen = null) {
-  const system = await armarInstrucciones();
+  const productos = await obtenerProductos();
+  const system = await armarInstrucciones(productos);
   const mensajes = ordenarHistorial(historial);
 
   if (imagen && mensajes.length) {
@@ -104,11 +108,18 @@ async function responderCliente(historial, imagen = null) {
 
   const venta = respuesta.match(/\[VENTA:\s*([^\]]+)\]/i);
   const humano = respuesta.match(/\[HUMANO:\s*([^\]]+)\]/i);
+  const normalizar = (t) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+  const fotos = [...respuesta.matchAll(/\[FOTO:\s*([^\]]+)\]/gi)]
+    .map((m) => productos.find((p) => p.imagen_url && normalizar(p.nombre) === normalizar(m[1])))
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => ({ url: p.imagen_url, nombre: p.nombre }));
   const texto = respuesta
     .replace(/\[VENTA:[^\]]*\]/gi, '')
     .replace(/\[HUMANO:[^\]]*\]/gi, '')
+    .replace(/\[FOTO:[^\]]*\]/gi, '')
     .trim();
-  return { texto, venta: venta ? venta[1].trim() : null, humano: humano ? humano[1].trim() : null };
+  return { texto, venta: venta ? venta[1].trim() : null, humano: humano ? humano[1].trim() : null, fotos };
 }
 
 module.exports = { responderCliente, formatearPrecio };

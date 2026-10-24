@@ -3,6 +3,8 @@
 const express = require('express');
 const axios = require('axios');
 const { supabase } = require('./datos');
+const { promoVigente, precioPromo, invalidarAjustes } = require('./promo');
+// (instagram.js se carga recién al generar contenido)
 
 const CATEGORIAS_GASTO = ['Stock', 'Marketing', 'Envíos', 'Operativo', 'Impuestos', 'Otro'];
 const ESTADOS = ['pendiente', 'en camino', 'entregado', 'cancelado'];
@@ -109,8 +111,18 @@ function parsearVenta(resumen, productos) {
 // Guarda la venta como pedido pendiente. Devuelve { pedido, duplicado }.
 async function registrarVenta(telefono, resumen, nombrePerfil) {
   if (!supabase) return { pedido: null, duplicado: false };
-  const { data: productos } = await supabase.from('productos').select('id, nombre, precio');
+  const [{ data: productos }, promo] = await Promise.all([supabase.from('productos').select('id, nombre, precio'), promoVigente()]);
   const v = parsearVenta(resumen, productos || []);
+  // Promo: el precio de lista con descuento, y el regalo configurado va a $0 (igual descuenta stock y costo).
+  if (v.producto && promo) {
+    const precioTexto = resumen.includes('|') ? resumen.split('|')[2] || '' : '';
+    if (/regalo/i.test(precioTexto) && v.producto.id === promo.regaloId) {
+      v.monto = 0;
+      v.regalo = true;
+    } else {
+      v.monto = precioPromo(v.producto.precio, promo) * v.cantidad;
+    }
+  }
 
   // Evita cargar dos veces la misma venta si el cliente vuelve a confirmar.
   const hace30 = new Date(Date.now() - 30 * 60 * 1000).toISOString();
@@ -209,7 +221,11 @@ async function comandoDueno(texto) {
 
 // ───────── API DEL PANEL /gestion ─────────
 
-const AJUSTES_DEFECTO = { margen_objetivo: 40, dias_costo_viejo: 30, redondeo_precio: 500 };
+const AJUSTES_DEFECTO = {
+  margen_objetivo: 40, dias_costo_viejo: 30, redondeo_precio: 500,
+  promo_descuento: 0, promo_hasta: '', promo_regalo_id: 0, promo_regalo_categoria: 'Wearables',
+};
+const AJUSTES_TEXTO = ['promo_hasta', 'promo_regalo_categoria'];
 
 const CAMPOS = {
   productos: ['nombre', 'categoria', 'precio', 'costo', 'stock', 'alerta', 'descripcion', 'cuotas_sin_interes', 'activo', 'imagen_url'],
@@ -254,14 +270,22 @@ function router(chequearClave, explicarError = (e) => e.message) {
     }
     // Ajustes del margen: si todavía no se corrió supabase-margen.sql, usa los valores por defecto.
     const aj = await supabase.from('ajustes').select('clave, valor');
-    const ajustes = { ...AJUSTES_DEFECTO, ...Object.fromEntries((aj.data || []).map((a) => [a.clave, Number(a.valor)])) };
+    const ajustes = { ...AJUSTES_DEFECTO, ...Object.fromEntries((aj.data || []).map((a) => [a.clave, AJUSTES_TEXTO.includes(a.clave) ? String(a.valor ?? '') : Number(a.valor)])) };
     res.json({ productos: productos.data, pedidos: pedidos.data, gastos: gastos.data, clientes: clientes.data, ajustes, faltaMargen: Boolean(aj.error) });
   });
 
   r.put('/ajustes/:clave', async (req, res) => {
     const { clave } = req.params;
-    const valor = Number(req.body.valor);
-    if (!(clave in AJUSTES_DEFECTO) || !Number.isFinite(valor) || valor < 0) return res.status(400).json({ error: 'Valor inválido' });
+    if (!(clave in AJUSTES_DEFECTO)) return res.status(400).json({ error: 'Ajuste desconocido' });
+    let valor;
+    if (AJUSTES_TEXTO.includes(clave)) {
+      valor = String(req.body.valor ?? '').trim();
+      if (clave === 'promo_hasta' && valor && !/^\d{4}-\d{2}-\d{2}$/.test(valor)) return res.status(400).json({ error: 'Fecha inválida' });
+    } else {
+      valor = Number(req.body.valor);
+      if (!Number.isFinite(valor) || valor < 0 || (clave === 'promo_descuento' && valor > 90)) return res.status(400).json({ error: 'Valor inválido' });
+    }
+    invalidarAjustes();
     responder(res, await supabase.from('ajustes').upsert({ clave, valor }, { onConflict: 'clave' }).select().single());
   });
 
@@ -298,6 +322,40 @@ function router(chequearClave, explicarError = (e) => e.message) {
       responder(res, await supabase.from('publicaciones').insert(fila).select().single());
     } catch (e) {
       console.error('Error creando publicación:', e.response?.data || e.message);
+      res.status(500).json({ error: explicarError(e) });
+    }
+  });
+
+  // ── Contenido de Instagram (historias + carrusel + caption) ──
+  r.get('/instagram', async (req, res) => {
+    const { data, error } = await supabase.from('contenido').select('*').eq('grupo', req.query.grupo || 'regreso').order('formato').order('orden');
+    if (error) return res.status(500).json({ error: /schema cache|does not exist/i.test(error.message) ? 'Falta correr supabase-instagram.sql en Supabase' : error.message });
+    res.json(data);
+  });
+
+  r.post('/instagram', async (req, res) => {
+    try {
+      const grupo = req.body.grupo || 'regreso';
+      const promo = await promoVigente();
+      if (!promo) return res.status(400).json({ error: 'Primero configurá la promo en Stock → ⚙️ (descuento, fecha y regalo).' });
+      const { data: productos, error } = await supabase.from('productos').select('*');
+      if (error) return res.status(500).json({ error: error.message });
+      const regalo = productos.find((p) => p.id === promo.regaloId && p.stock > 0) || null;
+      const { generarPackRegreso } = require('./instagram');
+      const piezas = await generarPackRegreso({ productos, promo, regalo, ids: req.body.ids });
+      const filas = piezas.map((p) => ({
+        grupo, formato: p.formato, orden: p.orden, nombre: p.nombre,
+        imagen: p.imagen ? 'data:image/jpeg;base64,' + p.imagen.toString('base64') : null,
+        texto: p.texto || null,
+      }));
+      await supabase.from('contenido').delete().eq('grupo', grupo);
+      for (const f of filas) {
+        const { error: e } = await supabase.from('contenido').insert(f);
+        if (e) return res.status(500).json({ error: e.message });
+      }
+      res.json({ ok: true, piezas: filas.length });
+    } catch (e) {
+      console.error('Error armando contenido:', e.response?.data || e.message);
       res.status(500).json({ error: explicarError(e) });
     }
   });

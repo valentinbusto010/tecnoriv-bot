@@ -69,6 +69,13 @@ const revisarPrecio = (p, aj) => {
   if (d !== null && d > aj.dias_costo_viejo) return "costo viejo";
   return null;
 };
+// Promo vigente: mismo cálculo que el bot (descuento redondeado al peso).
+const promoDe = (aj) => {
+  const d = Number(aj.promo_descuento) || 0, hasta = aj.promo_hasta || "", regaloId = Number(aj.promo_regalo_id) || null;
+  if (!hasta || today() > hasta || (!d && !regaloId)) return null;
+  return { descuento: d, hasta, regaloId, regaloCategoria: aj.promo_regalo_categoria || "Wearables" };
+};
+const precioPromo = (precio, promo) => promo && promo.descuento ? Math.round(Number(precio) * (1 - promo.descuento / 100)) : Number(precio);
 const REVISAR_COLOR = { "sin costo": "#6b7280", "margen bajo": "#ef4444", "costo viejo": "#f59e0b" };
 const pctDe = (a, b) => b ? Math.round((a / b) * 100) + "%" : "—";
 const colorMargen = (pct, aj) => pct >= aj.margen_objetivo ? "#10b981" : pct >= aj.margen_objetivo / 2 ? "#f59e0b" : "#ef4444";
@@ -198,6 +205,19 @@ const Dashboard = ({ pedidos, productos, gastos, clientes, ajustes, irA }) => {
         <StatCard label="Ventas del bot" value={delBot} sub={`${nuevosClientes} clientes nuevos este mes`} accent="#a78bfa" icon="wa" />
       </div>
 
+      {promoDe(ajustes) && (() => {
+        const pr = promoDe(ajustes);
+        const reg = productos.find(p => p.id === pr.regaloId);
+        return (
+          <div style={alertaSt("#0066FF")}>
+            <span style={{ fontSize: "16px" }}>🔥</span>
+            <div style={{ color: "#93c5fd", fontSize: "13px" }}>
+              <b style={{ color: "#60a5fa" }}>Promo activa hasta el {fmtDate(pr.hasta).slice(0, 5)}:</b>{pr.descuento ? ` ${pr.descuento}% OFF en todo` : ""}{reg ? `${pr.descuento ? " +" : ""} ${reg.nombre} de regalo con ${pr.regaloCategoria} (quedan ${reg.stock})` : ""}. El bot ya la aplica.
+            </div>
+          </div>
+        );
+      })()}
+
       {aRevisar.length > 0 && (
         <button onClick={() => irA("stock", "revisar")} style={{ ...alertaSt("#ef4444"), width: "100%", textAlign: "left", cursor: "pointer", fontFamily: "inherit" }}>
           <span style={{ color: "#ef4444", flexShrink: 0, marginTop: "2px" }}><Icon name="finanzas" size={16} /></span>
@@ -244,7 +264,8 @@ const alertaSt = (c) => ({ background: c + "11", border: `1px solid ${c}33`, bor
 // ─── PEDIDOS ───────────────────────────────────────────────────────────────────
 const pedidoVacio = () => ({ cliente: "", telefono: "", producto_id: "", cantidad: 1, monto: "", estado: "pendiente", fecha: today(), canal: "Instagram", entrega: "", pago: "" });
 
-const Pedidos = ({ pedidos, productos, accion }) => {
+const Pedidos = ({ pedidos, productos, accion, ajustes }) => {
+  const promo = promoDe(ajustes);
   const [modal, setModal] = useState(false);
   const [filtro, setFiltro] = useState("todos");
   const [form, setForm] = useState(pedidoVacio);
@@ -252,7 +273,7 @@ const Pedidos = ({ pedidos, productos, accion }) => {
 
   const elegirProducto = (id, cantidad = form.cantidad) => {
     const prod = productos.find(p => String(p.id) === String(id));
-    setForm({ ...form, producto_id: id, cantidad, monto: prod ? Number(prod.precio) * (Number(cantidad) || 1) : form.monto });
+    setForm({ ...form, producto_id: id, cantidad, monto: prod ? precioPromo(prod.precio, promo) * (Number(cantidad) || 1) : form.monto });
   };
 
   const guardar = async () => {
@@ -303,7 +324,7 @@ const Pedidos = ({ pedidos, productos, accion }) => {
           </Select>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "12px" }}>
             <Input label="Cantidad" type="number" min="1" value={form.cantidad} onChange={e => elegirProducto(form.producto_id, e.target.value)} />
-            <Input label="Monto total ($)" type="number" value={form.monto} onChange={e => setForm({ ...form, monto: e.target.value })} />
+            <Input label={promo?.descuento ? `Monto (con ${promo.descuento}% promo)` : "Monto total ($)"} type="number" value={form.monto} onChange={e => setForm({ ...form, monto: e.target.value })} />
           </div>
           <Select label="Canal" value={form.canal} onChange={e => setForm({ ...form, canal: e.target.value })}>
             {["Instagram", "WhatsApp", "Marketplace", "Web", "Presencial"].map(c => <option key={c}>{c}</option>)}
@@ -376,7 +397,7 @@ const Stock = ({ productos, ajustes, accion, filtroInicial, faltaMargen }) => {
     if (await accion(() => api("/productos/lote", "POST", cambiosLote))) setModal(null);
   };
   const guardarAjustes = async () => {
-    const ok = await accion(async () => { for (const k of Object.keys(aj)) if (Number(aj[k]) !== Number(ajustes[k])) await api(`/ajustes/${k}`, "PUT", { valor: aj[k] }); });
+    const ok = await accion(async () => { for (const k of Object.keys(aj)) if (String(aj[k] ?? "") !== String(ajustes[k] ?? "")) await api(`/ajustes/${k}`, "PUT", { valor: aj[k] }); });
     if (ok) setModal(null);
   };
 
@@ -384,7 +405,7 @@ const Stock = ({ productos, ajustes, accion, filtroInicial, faltaMargen }) => {
     <div>
       <Header kicker="Inventario · el bot vende lo que está acá" title="Stock" action={
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          <Btn variant="ghost" onClick={() => { setPubProducto(null); setModal("marketplace"); }}><Icon name="megafono" size={16} /> Marketplace</Btn>
+          <Btn variant="ghost" onClick={() => { setPubProducto(null); setModal("marketplace"); }}><Icon name="megafono" size={16} /> Publicar</Btn>
           <Btn variant="ghost" onClick={abrirLote}><Icon name="finanzas" size={16} /> Costos y precios</Btn>
           <Btn onClick={() => abrir(null)}><Icon name="plus" size={16} /> Producto</Btn>
         </div>} />
@@ -402,7 +423,7 @@ const Stock = ({ productos, ajustes, accion, filtroInicial, faltaMargen }) => {
         {[["todos", "Todos"], ["revisar", `Revisar precios (${aRevisar.length})`], ["bajo", "Stock bajo"]].map(([k, l]) => (
           <button key={k} onClick={() => setFiltro(k)} style={chipSt(filtro === k)}>{l}</button>
         ))}
-        <button onClick={() => { setAj(ajustes); setModal("ajustes"); }} style={{ ...chipSt(false), marginLeft: "auto" }}>⚙️ Margen objetivo: {ajustes.margen_objetivo}%</button>
+        <button onClick={() => { setAj(ajustes); setModal("ajustes"); }} style={{ ...chipSt(false), marginLeft: "auto" }}>⚙️ Margen {ajustes.margen_objetivo}%{promoDe(ajustes) ? " · 🔥 Promo activa" : " · Promo"}</button>
       </div>
 
       {visibles.length === 0 && <p style={{ color: "#6b7280" }}>{filtro === "revisar" ? "✅ Todos tus precios están bien." : "No hay productos."}</p>}
@@ -507,14 +528,29 @@ const Stock = ({ productos, ajustes, accion, filtroInicial, faltaMargen }) => {
         </Modal>
       )}
 
-      {modal === "marketplace" && <Marketplace productos={productos} inicial={pubProducto} onClose={() => setModal(null)} />}
+      {modal === "marketplace" && <Publicar productos={productos} inicial={pubProducto} ajustes={ajustes} onClose={() => setModal(null)} />}
 
       {modal === "ajustes" && (
-        <Modal title="Ajustes de margen" onClose={() => setModal(null)}>
+        <Modal title="Margen y promo" onClose={() => setModal(null)}>
           <Input label="Margen objetivo (% sobre el precio de venta)" type="number" value={aj.margen_objetivo} onChange={e => setAj({ ...aj, margen_objetivo: e.target.value })} />
           <p style={{ color: "#6b7280", fontSize: "12px", margin: "-8px 0 14px" }}>Ej: 40% → si te sale {fmt(10000)}, el precio sugerido es {fmt(precioSugerido(10000, aj) || 0)}. Por debajo de este margen el producto aparece en "Revisar precios".</p>
           <Input label="Avisar si el costo no se actualiza en (días)" type="number" value={aj.dias_costo_viejo} onChange={e => setAj({ ...aj, dias_costo_viejo: e.target.value })} />
           <Input label="Redondear precio sugerido a ($)" type="number" value={aj.redondeo_precio} onChange={e => setAj({ ...aj, redondeo_precio: e.target.value })} />
+          <div style={{ ...sectionLabel, margin: "20px 0 10px", color: "#60a5fa" }}>🔥 Promo (el bot la aplica sola)</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            <Input label="Descuento (%)" type="number" value={aj.promo_descuento} onChange={e => setAj({ ...aj, promo_descuento: e.target.value })} placeholder="0 = sin descuento" />
+            <Input label="Vale hasta (inclusive)" type="date" value={aj.promo_hasta || ""} onChange={e => setAj({ ...aj, promo_hasta: e.target.value })} />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            <Select label="Regalo" value={aj.promo_regalo_id || 0} onChange={e => setAj({ ...aj, promo_regalo_id: e.target.value })}>
+              <option value={0}>Sin regalo</option>
+              {productos.filter(p => p.activo !== false).map(p => <option key={p.id} value={p.id}>{p.nombre} ({p.stock} ud.)</option>)}
+            </Select>
+            <Select label="Con la compra de" value={aj.promo_regalo_categoria || "Wearables"} onChange={e => setAj({ ...aj, promo_regalo_categoria: e.target.value })}>
+              {CATS_PRODUCTO.map(c => <option key={c}>{c}</option>)}
+            </Select>
+          </div>
+          <p style={{ color: "#6b7280", fontSize: "12px", margin: "-6px 0 14px" }}>Para terminar la promo antes, poné descuento 0 y "Sin regalo", o una fecha pasada.</p>
           <Botones onCancel={() => setModal(null)} onOk={guardarAjustes} okLabel="Guardar" />
         </Modal>
       )}
@@ -522,11 +558,24 @@ const Stock = ({ productos, ajustes, accion, filtroInicial, faltaMargen }) => {
   );
 };
 const stockBtn = { width: 30, height: 30, background: "#1e2232", border: "none", borderRadius: "6px", color: "#fff", cursor: "pointer", fontSize: "16px", display: "flex", alignItems: "center", justifyContent: "center" };
-const chipSt = (activo) => ({ background: activo ? "#0066FF" : "#1e2232", color: activo ? "#fff" : "#9ca3af", border: "none", borderRadius: "100px", padding: "6px 14px", fontSize: "12px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" });
+const chipSt = (activo) => ({ background: activo ? "#0066FF" : "#1e2232", color: activo ? "#fff" : "#9ca3af", border: "none", borderRadius: "100px", padding: "6px 14px", fontSize: "12px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" });
 
 // ─── MARKETPLACE ───────────────────────────────────────────────────────────────
 // Publicaciones listas para copiar y pegar en Facebook Marketplace (imagen + título + descripción).
-const Marketplace = ({ productos, inicial, onClose }) => {
+const Publicar = ({ productos, inicial, onClose, ajustes }) => {
+  const [vista, setVista] = useState(inicial ? "marketplace" : "instagram");
+  return (
+    <Modal title="Publicar" onClose={onClose} ancho="680px">
+      <div style={{ display: "flex", gap: "8px", margin: "-6px 0 14px" }}>
+        <button onClick={() => setVista("instagram")} style={chipSt(vista === "instagram")}>Instagram</button>
+        <button onClick={() => setVista("marketplace")} style={chipSt(vista === "marketplace")}>Marketplace</button>
+      </div>
+      {vista === "instagram" ? <Instagram ajustes={ajustes} /> : <Marketplace productos={productos} inicial={inicial} />}
+    </Modal>
+  );
+};
+
+const Marketplace = ({ productos, inicial }) => {
   const [pubs, setPubs] = useState(null);
   const [error, setError] = useState("");
   const [generando, setGenerando] = useState(null);
@@ -556,8 +605,8 @@ const Marketplace = ({ productos, inicial, onClose }) => {
   const archivo = (n) => n.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + ".jpg";
 
   return (
-    <Modal title="Publicaciones de Marketplace" onClose={onClose} ancho="640px">
-      <p style={{ color: "#9ca3af", fontSize: "13px", margin: "-8px 0 14px" }}>Generá la publicación con la foto del producto. Después, desde el celu: descargá la imagen, copiá título y descripción, y pegalos en Marketplace.</p>
+    <div>
+      <p style={{ color: "#9ca3af", fontSize: "13px", margin: "0 0 14px" }}>Generá la publicación con la foto del producto. Después, desde el celu: descargá la imagen, copiá título y descripción, y pegalos en Marketplace.</p>
       <div style={{ display: "flex", gap: "8px", marginBottom: "12px", flexWrap: "wrap" }}>
         <select value={sel} onChange={e => setSel(e.target.value)} style={{ ...fieldSt, flex: 1, minWidth: "200px" }}>
           <option value="">Elegí un producto…</option>
@@ -591,7 +640,79 @@ const Marketplace = ({ productos, inicial, onClose }) => {
             );
           })}
         </div>}
-    </Modal>
+    </div>
+  );
+};
+
+// ─── INSTAGRAM ─────────────────────────────────────────────────────────────────
+// Pack de regreso: 3 historias + carrusel + caption, armado con las fotos reales y la promo vigente.
+const Instagram = ({ ajustes }) => {
+  const [piezas, setPiezas] = useState(null);
+  const [error, setError] = useState("");
+  const [generando, setGenerando] = useState(false);
+  const [copiado, setCopiado] = useState(false);
+  const promo = promoDe(ajustes);
+
+  const cargar = useCallback(async () => {
+    try { setPiezas(await api("/instagram?grupo=regreso")); } catch (e) { setError(e.message); setPiezas([]); }
+  }, []);
+  useEffect(() => { cargar(); }, [cargar]);
+
+  const generar = async () => {
+    setGenerando(true); setError("");
+    try { await api("/instagram", "POST", { grupo: "regreso" }); await cargar(); }
+    catch (e) { setError(e.message); }
+    finally { setGenerando(false); }
+  };
+  const descargar = (p) => { const a = document.createElement("a"); a.href = p.imagen; a.download = p.nombre.replace(/[^\w-]+/g, "_") + ".jpg"; document.body.appendChild(a); a.click(); a.remove(); };
+  const descargarTodo = async (lista) => { for (const p of lista) { descargar(p); await new Promise(r => setTimeout(r, 400)); } };
+  const historias = (piezas || []).filter(p => p.formato === "historia");
+  const carrusel = (piezas || []).filter(p => p.formato === "carrusel");
+  const cap = (piezas || []).find(p => p.formato === "caption");
+  const copiar = async () => {
+    try { await navigator.clipboard.writeText(cap.texto); } catch { const t = document.createElement("textarea"); t.value = cap.texto; document.body.appendChild(t); t.select(); try { document.execCommand("copy"); } catch {} t.remove(); }
+    setCopiado(true); setTimeout(() => setCopiado(false), 1500);
+  };
+  const miniatura = (p, alto) => (
+    <div key={p.id} style={{ textAlign: "center" }}>
+      <img src={p.imagen} alt={p.nombre} style={{ height: alto, borderRadius: "8px", display: "block", marginBottom: "6px" }} />
+      <button onClick={() => descargar(p)} style={{ ...chipSt(false), padding: "4px 10px", fontSize: "11px" }}>Descargar</button>
+    </div>
+  );
+
+  return (
+    <div>
+      {!promo && <div style={{ ...alertaSt("#f59e0b"), marginBottom: "12px" }}><div style={{ color: "#fcd34d", fontSize: "13px" }}>Primero activá la promo en Stock → ⚙️ (descuento, fecha y regalo). El contenido toma esos datos.</div></div>}
+      <div style={{ display: "flex", gap: "8px", marginBottom: "12px", flexWrap: "wrap", alignItems: "center" }}>
+        <Btn onClick={generar} disabled={generando || !promo}>{generando ? "Armando… (~15 s)" : piezas?.length ? "Regenerar con precios actuales" : "Generar contenido de regreso"}</Btn>
+        {piezas?.length > 0 && <span style={{ color: "#6b7280", fontSize: "12px" }}>Generado el {fmtDate(piezas[0].created_at)}</span>}
+      </div>
+      {error && <div style={{ color: "#fca5a5", fontSize: "13px", marginBottom: "12px" }}>{error}</div>}
+      {piezas === null ? <p style={{ color: "#6b7280" }}>Cargando…</p> : piezas.length === 0 ? <p style={{ color: "#6b7280", fontSize: "14px" }}>Todavía no generaste el contenido.</p> : (
+        <div style={{ maxHeight: "62vh", overflowY: "auto" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "4px 0 8px" }}>
+            <span style={sectionLabel}>Historias · subilas en orden</span>
+            <button onClick={() => descargarTodo(historias)} style={chipSt(true)}>Descargar las {historias.length}</button>
+          </div>
+          <div style={{ display: "flex", gap: "10px", overflowX: "auto", paddingBottom: "6px" }}>{historias.map(p => miniatura(p, "240px"))}</div>
+          <p style={{ color: "#6b7280", fontSize: "12px", margin: "6px 0 16px" }}>En la historia 3 agregá el sticker <b>Enlace</b> con tu link de WhatsApp (wa.me/5493585764330).</p>
+
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "4px 0 8px" }}>
+            <span style={sectionLabel}>Carrusel · {carrusel.length} fotos en este orden</span>
+            <button onClick={() => descargarTodo(carrusel)} style={chipSt(true)}>Descargar las {carrusel.length}</button>
+          </div>
+          <div style={{ display: "flex", gap: "10px", overflowX: "auto", paddingBottom: "6px", marginBottom: "16px" }}>{carrusel.map(p => miniatura(p, "200px"))}</div>
+
+          {cap && <>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "4px 0 8px" }}>
+              <span style={sectionLabel}>Caption del carrusel</span>
+              <button onClick={copiar} style={chipSt(true)}>{copiado ? "✓ Copiado" : "Copiar caption"}</button>
+            </div>
+            <div style={{ color: "#d1d5db", fontSize: "13px", whiteSpace: "pre-wrap", background: "#161b27", borderRadius: "8px", padding: "12px" }}>{cap.texto}</div>
+          </>}
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -887,7 +1008,7 @@ export default function App() {
   if (!datos) return <Shell><div style={{ padding: "40px", textAlign: "center", color: "#6b7280" }}>{aviso ? <span style={{ color: "#ef4444" }}>{aviso.texto}</span> : "Cargando…"}</div></Shell>;
 
   const { pedidos, productos, gastos, clientes, faltaMargen } = datos;
-  const ajustes = { margen_objetivo: 40, dias_costo_viejo: 30, redondeo_precio: 500, ...(datos.ajustes || {}) };
+  const ajustes = { margen_objetivo: 40, dias_costo_viejo: 30, redondeo_precio: 500, promo_descuento: 0, promo_hasta: "", promo_regalo_id: 0, promo_regalo_categoria: "Wearables", ...(datos.ajustes || {}) };
   const irA = (t, filtro = null) => { setTab(t); setFiltroStock(filtro); window.scrollTo(0, 0); };
   const pendientesCount = pedidos.filter(p => p.estado === "pendiente").length;
   const tabs = [
@@ -915,7 +1036,7 @@ export default function App() {
 
       <div style={{ flex: 1, maxWidth: "900px", margin: "0 auto", width: "100%", padding: "24px 16px 100px", boxSizing: "border-box" }}>
         {tab === "dashboard" && <Dashboard pedidos={pedidos} productos={productos} gastos={gastos} clientes={clientes} ajustes={ajustes} irA={irA} />}
-        {tab === "pedidos" && <Pedidos pedidos={pedidos} productos={productos.filter(p => p.activo !== false)} accion={accion} />}
+        {tab === "pedidos" && <Pedidos pedidos={pedidos} productos={productos.filter(p => p.activo !== false)} accion={accion} ajustes={ajustes} />}
         {tab === "clientes" && <Clientes clientes={clientes} pedidos={pedidos} accion={accion} />}
         {tab === "stock" && <Stock productos={productos} ajustes={ajustes} accion={accion} filtroInicial={filtroStock} faltaMargen={faltaMargen} />}
         {tab === "finanzas" && <Finanzas pedidos={pedidos} gastos={gastos} accion={accion} />}

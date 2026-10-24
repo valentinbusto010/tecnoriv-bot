@@ -1,13 +1,18 @@
 const negocio = require('./negocio');
 const { responderChat } = require('./claude');
 const { obtenerProductos, obtenerFaqs } = require('./datos');
+const { promoVigente, precioPromo, fechaCorta } = require('./promo');
 
 function formatearPrecio(n) {
   return '$' + Math.round(Number(n)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 }
 
 async function armarInstrucciones(productos) {
-  const faqs = await obtenerFaqs();
+  const [faqs, promo] = await Promise.all([obtenerFaqs(), promoVigente()]);
+  const regalo = promo?.regaloId ? productos.find((p) => p.id === promo.regaloId) : null;
+  const hayRegalo = Boolean(regalo && regalo.stock > 0);
+  const precioTxt = (p) =>
+    promo && promo.descuento ? `${formatearPrecio(p.precio)} → PROMO ${formatearPrecio(precioPromo(p.precio, promo))}` : formatearPrecio(p.precio);
 
   const catalogo = productos.length
     ? productos
@@ -15,12 +20,21 @@ async function armarInstrucciones(productos) {
           const stock = p.stock > 0 ? `disponible (dato interno: ${p.stock} u.)` : 'SIN STOCK';
           const cuotas = p.cuotas_sin_interes > 0 ? `${p.cuotas_sin_interes} cuotas sin interés` : 'sin cuotas sin interés';
           const foto = p.imagen_url ? ' | tiene foto' : '';
-          return `- ${p.nombre} | ${p.categoria || 'Otro'} | ${formatearPrecio(p.precio)} | ${stock} | ${cuotas}${foto}${p.descripcion ? ' | ' + p.descripcion : ''}`;
+          return `- ${p.nombre} | ${p.categoria || 'Otro'} | ${precioTxt(p)} | ${stock} | ${cuotas}${foto}${p.descripcion ? ' | ' + p.descripcion : ''}`;
         })
         .join('\n')
     : '(catálogo no disponible ahora. NUNCA le digas al cliente que no tenés el catálogo: decí que confirmás precio y stock en un momento)';
 
   const preguntasFrecuentes = faqs.map((f) => `- ${f.keywords}: ${f.respuesta}`).join('\n');
+
+  const textoPromo = !promo ? '' : `
+PROMO VIGENTE (hasta el ${fechaCorta(promo.hasta)} inclusive):${promo.descuento ? `
+- ${promo.descuento}% OFF en todos los productos. En el catálogo cada precio figura como "precio de lista → PROMO precio". Cotizá SIEMPRE el precio PROMO y aclará que es precio promo hasta el ${fechaCorta(promo.hasta)}. En la marca [VENTA] poné el precio PROMO.` : ''}${hayRegalo ? `
+- REGALO: con cada producto de la categoría ${promo.regaloCategoria}, el cliente se lleva de regalo 1 ${regalo.nombre} (hasta agotar stock). Mencionalo cuando cotices uno de esos productos, es un gancho de venta.
+- En el cierre de una venta que lleva regalo, agregá una marca extra para el regalo con la palabra REGALO en el precio: [VENTA: ${regalo.nombre} | 1 | REGALO | nombre | entrega | pago]
+- A quien recibe ${regalo.nombre} de regalo no se lo ofrezcas como complemento pago.` : ''}
+- La promo no se suma con otros descuentos: no inventes descuentos extra.
+`;
 
   return `Sos el vendedor de ${negocio.nombre}, tienda de tecnología de ${negocio.ciudad} (Instagram ${negocio.instagram}).
 Vendemos smartwatches, auriculares inalámbricos, AirPods, cargadores Android y Apple y accesorios.
@@ -89,7 +103,7 @@ DATOS DEL NEGOCIO:
 
 CATÁLOGO (producto | categoría | precio | disponibilidad | cuotas | foto | detalle):
 ${catalogo}
-${preguntasFrecuentes ? '\nPREGUNTAS FRECUENTES:\n' + preguntasFrecuentes : ''}`;
+${textoPromo}${preguntasFrecuentes ? '\nPREGUNTAS FRECUENTES:\n' + preguntasFrecuentes : ''}`;
 }
 
 // La API pide que los mensajes alternen cliente/bot y arranquen por el cliente.

@@ -179,4 +179,4 @@ async function crearPublicacion({ foto, nombre, precio, precioAnterior, cuotas, 
   return { titulo: textos.titulo, descripcion: textos.descripcion, imagen };
 }
 
-module.exports = { crearPublicacion, generarImagen };
+module.exports = { crearPublicacion, generarImagen, texto, fuenteTitular, fuenteBold, fuenteMedia, COLORES };

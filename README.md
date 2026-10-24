@@ -40,6 +40,10 @@ Entrá a `https://TU-SERVIDOR/gestion` (misma contraseña que el panel). Funcion
 
 **Margen real:** en Stock → **Costos y precios** cargás lo que te sale cada producto. Cada venta guarda su costo, así que si después tu proveedor aumenta, las ventas viejas mantienen su ganancia. El sistema marca en "Revisar precios" los productos sin costo, con margen por debajo de tu objetivo o con el costo sin actualizar hace más de 30 días, y te sugiere el precio. Los gastos de categoría "Stock" (compras de mercadería) no se restan de la ganancia porque ya están en el costo de cada venta.
 
+**Promo:** en Stock → ⚙️ configurás descuento (%), fecha límite y regalo (ej: hidrogel con cada smartwatch). El bot cotiza el precio promo, registra la venta con descuento y el regalo a $0 (descuenta stock y costo). Al pasar la fecha, la promo se apaga sola.
+
+**Instagram desde el sistema:** Stock → **Publicar** → Instagram → "Generar contenido". Arma 3 historias, un carrusel con tus productos y el caption, con las fotos reales y la promo vigente. Descargás todo desde el celu y subís.
+
 **Marketplace desde el sistema:** en Stock tocá el 📣 de un producto (o el botón **Marketplace**) y se genera la imagen con tu marca, el título y la descripción usando la foto del producto. Quedan guardadas: desde el celu descargás la imagen y copiás los textos para publicar.
 
 **Instalarla como app:** abrí `/gestion` y tocá **Instalar app** arriba a la derecha (Chrome en PC y Android). En iPhone: Safari → Compartir → Agregar a inicio.
@@ -59,7 +63,7 @@ Editá el archivo `src/negocio.js`.
 
 ## Instalación (una sola vez)
 
-1. **Supabase:** abrí tu proyecto → **SQL Editor** → pegá el contenido de `supabase.sql` → **Run**. Después corré también `supabase-gestion.sql`, `supabase-margen.sql` y `supabase-publicaciones.sql` (agrega clientes, gastos y el stock automático; se puede correr más de una vez). Cargá tus productos reales en la tabla `productos` o desde `/gestion`.
+1. **Supabase:** abrí tu proyecto → **SQL Editor** → pegá el contenido de `supabase.sql` → **Run**. Después corré también `supabase-gestion.sql`, `supabase-margen.sql`, `supabase-publicaciones.sql` y `supabase-instagram.sql` (agrega clientes, gastos y el stock automático; se puede correr más de una vez). Cargá tus productos reales en la tabla `productos` o desde `/gestion`.
 2. **Variables:** en tu hosting (Render, Railway, etc.) cargá las variables de `.env.example`:
    - `CLAUDE_API_KEY`, `WHATSAPP_TOKEN`, `PHONE_NUMBER_ID`, `VERIFY_TOKEN`, `SUPABASE_URL`, `SUPABASE_KEY` (las mismas que ya usabas)
    - **Nuevas:** `OWNER_PHONE` (tu número para los avisos de venta, ej `5493584123456`) y `PANEL_PASSWORD` (inventá una contraseña).
@@ -79,5 +83,6 @@ Para probar en tu compu: `npm install`, copiá `.env.example` como `.env`, compl
 - `public/panel.html` → el panel de Marketplace
 - `src/gestion.js` → ventas, clientes, gastos y la API del sistema de gestión
 - `gestion/App.jsx` → el sistema de gestión (si lo cambiás: `npm i --no-save esbuild react@18 react-dom@18 && node gestion/build.mjs`)
-- `supabase.sql` + `supabase-gestion.sql` + `supabase-margen.sql` + `supabase-publicaciones.sql` → tablas de la base de datos
+- `supabase.sql` + `supabase-gestion.sql` + `supabase-margen.sql` + `supabase-publicaciones.sql` + `supabase-instagram.sql` → tablas de la base de datos
+- `src/promo.js` → promo vigente · `src/instagram.js` → historias y carrusel
 - `gestion/iconos.js` → genera los íconos de la app

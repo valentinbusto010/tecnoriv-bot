@@ -235,7 +235,7 @@ function router(chequearClave) {
     ]);
     const error = productos.error || pedidos.error || gastos.error || clientes.error;
     if (error) {
-      const falta = /does not exist|column/i.test(error.message);
+      const falta = /does not exist|schema cache|column/i.test(error.message);
       return res.status(500).json({ error: falta ? `Falta correr supabase-gestion.sql en Supabase (${error.message})` : error.message });
     }
     res.json({ productos: productos.data, pedidos: pedidos.data, gastos: gastos.data, clientes: clientes.data });

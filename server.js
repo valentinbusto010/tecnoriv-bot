@@ -25,6 +25,15 @@ async function enviarWhatsApp(to, body) {
   );
 }
 
+async function enviarImagen(to, link, caption) {
+  to = String(to).replace(/^549/, '54');
+  await axios.post(
+    `https://graph.facebook.com/v21.0/${PHONE_NUMBER_ID}/messages`,
+    { messaging_product: 'whatsapp', to, type: 'image', image: { link, caption } },
+    { headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}`, 'Content-Type': 'application/json' } }
+  );
+}
+
 app.get('/webhook', (req, res) => {
   if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === VERIFY_TOKEN) {
     console.log('Webhook verificado correctamente');
@@ -92,8 +101,13 @@ app.post('/webhook', async (req, res) => {
 
     const historial = await obtenerHistorial(from);
     await guardarMensaje(from, 'user', text);
-    const { texto, venta, humano } = await responderCliente([...historial, { role: 'user', content: text }], imagen);
+    const { texto, venta, humano, fotos } = await responderCliente([...historial, { role: 'user', content: text }], imagen);
 
+    for (const foto of fotos) {
+      await enviarImagen(from, foto.url, foto.nombre).catch((e) =>
+        console.error('No se pudo mandar la foto:', e.response?.data?.error?.message || e.message)
+      );
+    }
     await enviarWhatsApp(from, texto);
     await guardarMensaje(from, 'assistant', texto);
     console.log(`Respuesta enviada a ${from}`);

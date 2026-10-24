@@ -115,7 +115,7 @@ app.post('/webhook', async (req, res) => {
 
     const historial = await obtenerHistorial(from);
     await guardarMensaje(from, 'user', text);
-    const { texto, venta, humano, fotos } = await responderCliente([...historial, { role: 'user', content: text }], imagen);
+    const { texto, ventas, humano, fotos } = await responderCliente([...historial, { role: 'user', content: text }], imagen);
 
     for (const foto of fotos) {
       await enviarImagen(from, foto.url, foto.nombre).catch((e) =>
@@ -126,15 +126,25 @@ app.post('/webhook', async (req, res) => {
     await guardarMensaje(from, 'assistant', texto);
     console.log(`Respuesta enviada a ${from}`);
 
-    if (venta) {
-      console.log(`VENTA CERRADA con ${from}: ${venta}`);
-      const { pedido, duplicado, venta: v } = await gestion.registrarVenta(from, venta, nombrePerfil);
-      if (duplicado) console.log(`Venta repetida de ${from}, no se cargó de nuevo`);
-      else {
-        const detalle = v
-          ? `${v.cantidad > 1 ? v.cantidad + 'x ' : ''}${v.productoTexto} · ${gestion.fmt(v.monto)}${v.producto ? '' : ' ⚠️ producto no encontrado en el catálogo, revisalo'}\n${v.nombre || ''}${v.entrega ? ' · ' + v.entrega : ''}${v.pago ? ' · ' + v.pago : ''}`
-          : venta;
-        await avisarDueno(`🛒 NUEVA VENTA${pedido ? ' #' + pedido.id : ''}\nCliente: +${from}\n${detalle}\nYa está en /gestion como pendiente.`);
+    if (ventas.length) {
+      // Una marca [VENTA] por producto: si el cliente sumó un complemento, entran los dos.
+      const lineas = [];
+      let total = 0;
+      let ids = [];
+      for (const venta of ventas) {
+        console.log(`VENTA CERRADA con ${from}: ${venta}`);
+        const { pedido, duplicado, venta: v } = await gestion.registrarVenta(from, venta, nombrePerfil);
+        if (duplicado) { console.log(`Venta repetida de ${from}, no se cargó de nuevo`); continue; }
+        if (pedido) ids.push('#' + pedido.id);
+        if (v) {
+          total += v.monto;
+          lineas.push(`${v.cantidad > 1 ? v.cantidad + 'x ' : ''}${v.productoTexto} · ${gestion.fmt(v.monto)}${v.producto ? '' : ' ⚠️ no está en el catálogo, revisalo'}`);
+          if (!lineas.datos) lineas.datos = `${v.nombre || ''}${v.entrega ? ' · ' + v.entrega : ''}${v.pago ? ' · ' + v.pago : ''}`;
+        } else lineas.push(venta);
+      }
+      if (lineas.length) {
+        const extra = lineas.length > 1 ? `\nTotal: ${gestion.fmt(total)} (sumó complemento 🙌)` : '';
+        await avisarDueno(`🛒 NUEVA VENTA ${ids.join(' ')}\nCliente: +${from}\n${lineas.join('\n')}${extra}\n${lineas.datos || ''}\nYa está en /gestion como pendiente.`);
       }
     }
     if (humano) {

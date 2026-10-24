@@ -15,7 +15,7 @@ async function armarInstrucciones(productos) {
           const stock = p.stock > 0 ? `disponible (dato interno: ${p.stock} u.)` : 'SIN STOCK';
           const cuotas = p.cuotas_sin_interes > 0 ? `${p.cuotas_sin_interes} cuotas sin interés` : 'sin cuotas sin interés';
           const foto = p.imagen_url ? ' | tiene foto' : '';
-          return `- ${p.nombre} | ${formatearPrecio(p.precio)} | ${stock} | ${cuotas}${foto}${p.descripcion ? ' | ' + p.descripcion : ''}`;
+          return `- ${p.nombre} | ${p.categoria || 'Otro'} | ${formatearPrecio(p.precio)} | ${stock} | ${cuotas}${foto}${p.descripcion ? ' | ' + p.descripcion : ''}`;
         })
         .join('\n')
     : '(catálogo no disponible ahora. NUNCA le digas al cliente que no tenés el catálogo: decí que confirmás precio y stock en un momento)';
@@ -41,16 +41,25 @@ CÓMO VENDÉS:
 4. Pregunta de compatibilidad (ej: "¿sirve para iPhone 13?", "¿anda con Samsung?"): respondé solo si el detalle del catálogo lo dice. Si no está claro, decí que lo confirmás con el equipo.
 5. Duda por el precio: si tiene cuotas sin interés, destacalas. Si no, destacá la garantía, que estamos en ${negocio.ciudad}, el envío gratis en la ciudad y la atención personalizada. No inventes descuentos.
 6. Sin stock o no lo tenemos: decilo claro y ofrecé la alternativa más parecida del catálogo.
-7. Quiere comprar: pedí los datos de a uno: nombre, envío (dirección en Río Cuarto) o retiro, y medio de pago.
+7. Quiere comprar: antes de pedir los datos, ofrecé UN complemento (ver COMPLEMENTOS). Después pedí los datos de a uno: nombre, envío (dirección en Río Cuarto) o retiro, y medio de pago.
 TRANSFERENCIA: si el cliente elige pagar por transferencia, pasale los datos con este mensaje (podés adaptar el saludo, pero respetá el contenido):
 "Te paso mis datos para que transfieras tranquilo cuando te llegue el producto 🙌
 Alias: ${negocio.transferencia.alias}
 Titular: ${negocio.transferencia.titular}
 ${negocio.transferencia.banco}"
 Dejá claro que se transfiere cuando recibe el producto, no antes. No inventes otros datos bancarios (CBU, CVU).
-8. Antes de cerrar, confirmá el pedido en un mensaje corto: producto, precio, entrega y pago. Cuando el cliente dice que sí, agregá al final de tu mensaje exactamente:
+8. Antes de cerrar, confirmá el pedido en un mensaje corto: producto(s), precio total, entrega y pago. Cuando el cliente dice que sí, agregá al final de tu mensaje exactamente una marca por cada producto distinto:
 [VENTA: producto exacto como figura en el catálogo | cantidad | precio total | nombre | envío con dirección o retiro | medio de pago]
 Ejemplo: [VENTA: Smartwatch T900 Ultra | 1 | $39.990 | Juan Pérez | envío a Belgrano 123 | transferencia]
+Si sumó un complemento, van dos marcas seguidas, una por producto, con el mismo nombre, entrega y pago.
+
+COMPLEMENTOS (sumar un accesorio a la venta):
+- Cuando el cliente ya decidió comprar, ofrecé UNA sola vez un accesorio que combine con lo que lleva, en una frase corta y sin presionar. Ej: "¿Le sumamos un hidrogel para que no se raye la pantalla? Son $X y te lo llevo junto 🙌".
+- Combinaciones: smartwatch → hidrogel, funda o malla para smartwatch. Cargador o cabezal → el cable que le corresponde. Cable → cabezal cargador. Funda de iPhone → otra funda o un cable para su iPhone. Auriculares → un cable o cabezal si le sirve.
+- Solo productos del catálogo que estén disponibles. Si no hay ninguno que combine, no ofrezcas nada.
+- Si el cliente dice que no o no responde a eso, seguí con la venta y no lo vuelvas a ofrecer.
+- No inventes descuentos por llevar los dos. Podés decir que va en el mismo envío o retiro, sin costo extra.
+- Si el cliente compra solo un accesorio barato, no ofrezcas nada más.
 
 MANDAR FOTOS: si el cliente pregunta por un producto concreto que en el catálogo dice "tiene foto", agregá al final de tu mensaje [FOTO: nombre exacto del producto como figura en el catálogo]. Máximo 2 fotos por mensaje. Mandá la foto solo la primera vez que hablás de ese producto en la conversación, o si el cliente la pide.
 
@@ -77,7 +86,7 @@ DATOS DEL NEGOCIO:
 - Garantía: ${negocio.garantia}
 - Horario: ${negocio.horario}
 
-CATÁLOGO (producto | precio | disponibilidad | cuotas | foto | detalle):
+CATÁLOGO (producto | categoría | precio | disponibilidad | cuotas | foto | detalle):
 ${catalogo}
 ${preguntasFrecuentes ? '\nPREGUNTAS FRECUENTES:\n' + preguntasFrecuentes : ''}`;
 }
@@ -113,7 +122,7 @@ async function responderCliente(historial, imagen = null) {
 
   const respuesta = await responderChat(system, mensajes);
 
-  const venta = respuesta.match(/\[VENTA:\s*([^\]]+)\]/i);
+  const ventas = [...respuesta.matchAll(/\[VENTA:\s*([^\]]+)\]/gi)].map((m) => m[1].trim());
   const humano = respuesta.match(/\[HUMANO:\s*([^\]]+)\]/i);
   const normalizar = (t) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
   const fotos = [...respuesta.matchAll(/\[FOTO:\s*([^\]]+)\]/gi)]
@@ -126,7 +135,7 @@ async function responderCliente(historial, imagen = null) {
     .replace(/\[HUMANO:[^\]]*\]/gi, '')
     .replace(/\[FOTO:[^\]]*\]/gi, '')
     .trim();
-  return { texto, venta: venta ? venta[1].trim() : null, humano: humano ? humano[1].trim() : null, fotos };
+  return { texto, venta: ventas[0] || null, ventas, humano: humano ? humano[1].trim() : null, fotos };
 }
 
 module.exports = { responderCliente, formatearPrecio };

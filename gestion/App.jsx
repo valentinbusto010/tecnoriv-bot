@@ -89,6 +89,7 @@ const Icon = ({ name, size = 18 }) => {
     close: <svg {...p} strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
     trend: <svg {...p}><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>,
     wa: <svg {...p}><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>,
+    megafono: <svg {...p}><path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>,
     download: <svg {...p}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
     refresh: <svg {...p}><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>,
   };
@@ -334,7 +335,8 @@ const AyudaPrecio = ({ precio, costo, ajustes, onUsar }) => {
 };
 
 const Stock = ({ productos, ajustes, accion, filtroInicial, faltaMargen }) => {
-  const [modal, setModal] = useState(null); // "producto" | "costos" | "ajustes"
+  const [modal, setModal] = useState(null); // "producto" | "costos" | "ajustes" | "marketplace"
+  const [pubProducto, setPubProducto] = useState(null);
   const [editando, setEditando] = useState(null);
   const [form, setForm] = useState(productoVacio);
   const [filtro, setFiltro] = useState(filtroInicial || "todos");
@@ -382,6 +384,7 @@ const Stock = ({ productos, ajustes, accion, filtroInicial, faltaMargen }) => {
     <div>
       <Header kicker="Inventario · el bot vende lo que está acá" title="Stock" action={
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          <Btn variant="ghost" onClick={() => { setPubProducto(null); setModal("marketplace"); }}><Icon name="megafono" size={16} /> Marketplace</Btn>
           <Btn variant="ghost" onClick={abrirLote}><Icon name="finanzas" size={16} /> Costos y precios</Btn>
           <Btn onClick={() => abrir(null)}><Icon name="plus" size={16} /> Producto</Btn>
         </div>} />
@@ -436,6 +439,7 @@ const Stock = ({ productos, ajustes, accion, filtroInicial, faltaMargen }) => {
                         <span style={{ color: p.stock <= p.alerta ? "#f59e0b" : "#fff", fontWeight: 800, fontSize: "16px", minWidth: "28px", textAlign: "center" }}>{p.stock}</span>
                         <button onClick={() => accion(() => api(`/productos/${p.id}/stock`, "POST", { delta: 1 }))} style={stockBtn}>+</button>
                       </div>
+                      {p.imagen_url && p.activo !== false && <button onClick={() => { setPubProducto(p.id); setModal("marketplace"); }} title="Publicación de Marketplace" style={iconBtn}><Icon name="megafono" size={14} /></button>}
                       <button onClick={() => abrir(p)} style={iconBtn}><Icon name="edit" size={14} /></button>
                       <button onClick={() => confirm(`¿Borrar ${p.nombre}? Si solo no lo vendés más, mejor editalo y ocultalo.`) && accion(() => api(`/productos/${p.id}`, "DELETE"))} style={iconBtn}><Icon name="trash" size={14} /></button>
                     </div>
@@ -503,6 +507,8 @@ const Stock = ({ productos, ajustes, accion, filtroInicial, faltaMargen }) => {
         </Modal>
       )}
 
+      {modal === "marketplace" && <Marketplace productos={productos} inicial={pubProducto} onClose={() => setModal(null)} />}
+
       {modal === "ajustes" && (
         <Modal title="Ajustes de margen" onClose={() => setModal(null)}>
           <Input label="Margen objetivo (% sobre el precio de venta)" type="number" value={aj.margen_objetivo} onChange={e => setAj({ ...aj, margen_objetivo: e.target.value })} />
@@ -517,6 +523,77 @@ const Stock = ({ productos, ajustes, accion, filtroInicial, faltaMargen }) => {
 };
 const stockBtn = { width: 30, height: 30, background: "#1e2232", border: "none", borderRadius: "6px", color: "#fff", cursor: "pointer", fontSize: "16px", display: "flex", alignItems: "center", justifyContent: "center" };
 const chipSt = (activo) => ({ background: activo ? "#0066FF" : "#1e2232", color: activo ? "#fff" : "#9ca3af", border: "none", borderRadius: "100px", padding: "6px 14px", fontSize: "12px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" });
+
+// ─── MARKETPLACE ───────────────────────────────────────────────────────────────
+// Publicaciones listas para copiar y pegar en Facebook Marketplace (imagen + título + descripción).
+const Marketplace = ({ productos, inicial, onClose }) => {
+  const [pubs, setPubs] = useState(null);
+  const [error, setError] = useState("");
+  const [generando, setGenerando] = useState(null);
+  const [sel, setSel] = useState(inicial ? String(inicial) : "");
+  const [copiado, setCopiado] = useState("");
+  const conFoto = productos.filter(p => p.activo !== false && p.imagen_url);
+
+  const cargar = useCallback(async () => {
+    try { setPubs(await api("/publicaciones")); } catch (e) { setError(e.message); setPubs([]); }
+  }, []);
+  useEffect(() => { cargar(); }, [cargar]);
+
+  const generar = async (id) => {
+    setGenerando(String(id)); setError("");
+    try { await api("/publicaciones", "POST", { producto_id: id }); await cargar(); }
+    catch (e) { setError(e.message); }
+    finally { setGenerando(null); }
+  };
+  const copiar = async (clave, texto) => {
+    try { await navigator.clipboard.writeText(texto); } catch {
+      const t = document.createElement("textarea"); t.value = texto; document.body.appendChild(t); t.select(); try { document.execCommand("copy"); } catch {} t.remove();
+    }
+    setCopiado(clave); setTimeout(() => setCopiado(""), 1500);
+  };
+  const precioActual = (pub) => productos.find(p => p.id === pub.producto_id)?.precio;
+  const yaTiene = (id) => (pubs || []).some(x => String(x.producto_id) === String(id));
+  const archivo = (n) => n.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + ".jpg";
+
+  return (
+    <Modal title="Publicaciones de Marketplace" onClose={onClose} ancho="640px">
+      <p style={{ color: "#9ca3af", fontSize: "13px", margin: "-8px 0 14px" }}>Generá la publicación con la foto del producto. Después, desde el celu: descargá la imagen, copiá título y descripción, y pegalos en Marketplace.</p>
+      <div style={{ display: "flex", gap: "8px", marginBottom: "12px", flexWrap: "wrap" }}>
+        <select value={sel} onChange={e => setSel(e.target.value)} style={{ ...fieldSt, flex: 1, minWidth: "200px" }}>
+          <option value="">Elegí un producto…</option>
+          {conFoto.map(p => <option key={p.id} value={p.id}>{yaTiene(p.id) ? "✓ " : ""}{p.nombre} · {fmt(p.precio)}</option>)}
+        </select>
+        <Btn onClick={() => sel && generar(sel)} disabled={!sel || Boolean(generando)}>{generando ? "Generando… (~20 s)" : yaTiene(sel) ? "Regenerar" : "Generar"}</Btn>
+      </div>
+      {error && <div style={{ color: "#fca5a5", fontSize: "13px", marginBottom: "12px" }}>{error}</div>}
+      {pubs === null ? <p style={{ color: "#6b7280" }}>Cargando…</p> : pubs.length === 0 ? <p style={{ color: "#6b7280", fontSize: "14px" }}>Todavía no generaste publicaciones.</p> :
+        <div style={{ maxHeight: "60vh", overflowY: "auto" }}>
+          {pubs.map(pub => {
+            const cambio = precioActual(pub) !== undefined && Number(precioActual(pub)) !== Number(pub.precio);
+            return (
+              <div key={pub.id} style={{ borderTop: "1px solid #1e2232", padding: "14px 0" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", marginBottom: "8px", flexWrap: "wrap" }}>
+                  <span style={{ color: "#fff", fontWeight: 700, fontSize: "14px" }}>{pub.producto} {cambio && <Badge color="#f59e0b">EL PRECIO CAMBIÓ · REGENERÁ</Badge>}</span>
+                  <span style={{ display: "flex", gap: "4px" }}>
+                    <button onClick={() => generar(pub.producto_id)} disabled={Boolean(generando)} title="Regenerar" style={iconBtn}><Icon name="refresh" size={14} /></button>
+                    <button onClick={async () => { if (confirm("¿Borrar esta publicación?")) { await api(`/publicaciones/${pub.id}`, "DELETE").catch(e => setError(e.message)); cargar(); } }} title="Borrar" style={iconBtn}><Icon name="trash" size={14} /></button>
+                  </span>
+                </div>
+                <img src={pub.imagen} alt={pub.titulo} style={{ width: "100%", maxWidth: "360px", borderRadius: "10px", display: "block", marginBottom: "10px" }} />
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "10px" }}>
+                  <a href={pub.imagen} download={archivo(pub.producto)} style={{ ...chipSt(true), textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "4px" }}><Icon name="download" size={12} /> Descargar imagen</a>
+                  <button onClick={() => copiar("t" + pub.id, pub.titulo)} style={chipSt(false)}>{copiado === "t" + pub.id ? "✓ Copiado" : "Copiar título"}</button>
+                  <button onClick={() => copiar("d" + pub.id, pub.descripcion)} style={chipSt(false)}>{copiado === "d" + pub.id ? "✓ Copiada" : "Copiar descripción"}</button>
+                </div>
+                <div style={{ color: "#fff", fontSize: "14px", fontWeight: 600, marginBottom: "4px" }}>{pub.titulo}</div>
+                <div style={{ color: "#9ca3af", fontSize: "13px", whiteSpace: "pre-wrap", background: "#161b27", borderRadius: "8px", padding: "10px", maxHeight: "140px", overflowY: "auto" }}>{pub.descripcion}</div>
+              </div>
+            );
+          })}
+        </div>}
+    </Modal>
+  );
+};
 
 // ─── FINANZAS ──────────────────────────────────────────────────────────────────
 const Finanzas = ({ pedidos, gastos, accion }) => {

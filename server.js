@@ -200,7 +200,7 @@ app.get('/gestion-sw.js', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'gestion-sw.js'));
 });
 app.use('/app', express.static(path.join(__dirname, 'public', 'app'), { maxAge: '7d' }));
-app.use('/api/gestion', gestion.router(chequearClave));
+app.use('/api/gestion', gestion.router(chequearClave, explicarError));
 
 app.get('/api/estado', chequearClave, async (req, res) => res.json(await estadoCatalogo()));
 

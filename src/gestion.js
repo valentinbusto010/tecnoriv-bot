@@ -1,6 +1,7 @@
 // Conecta el bot con el sistema de gestión: clientes, ventas, gastos y stock
 // viven en las mismas tablas de Supabase que lee el panel /gestion.
 const express = require('express');
+const axios = require('axios');
 const { supabase } = require('./datos');
 
 const CATEGORIAS_GASTO = ['Stock', 'Marketing', 'Envíos', 'Operativo', 'Impuestos', 'Otro'];
@@ -232,7 +233,7 @@ function limpiar(tabla, body) {
   return out;
 }
 
-function router(chequearClave) {
+function router(chequearClave, explicarError = (e) => e.message) {
   const r = express.Router();
   r.use(chequearClave);
   r.use((req, res, next) => (supabase ? next() : res.status(503).json({ error: 'Faltan SUPABASE_URL o SUPABASE_KEY en Render.' })));
@@ -263,6 +264,45 @@ function router(chequearClave) {
     if (!(clave in AJUSTES_DEFECTO) || !Number.isFinite(valor) || valor < 0) return res.status(400).json({ error: 'Valor inválido' });
     responder(res, await supabase.from('ajustes').upsert({ clave, valor }, { onConflict: 'clave' }).select().single());
   });
+
+  // ── Publicaciones de Marketplace ──
+  r.get('/publicaciones', async (req, res) => {
+    const { data, error } = await supabase.from('publicaciones').select('*').order('created_at', { ascending: false }).limit(100);
+    if (error) return res.status(500).json({ error: /schema cache|does not exist/i.test(error.message) ? 'Falta correr supabase-publicaciones.sql en Supabase' : error.message });
+    res.json(data);
+  });
+
+  // Genera imagen + título + descripción con la foto que ya tiene cargada el producto.
+  r.post('/publicaciones', async (req, res) => {
+    try {
+      const { data: p, error } = await supabase.from('productos').select('*').eq('id', req.body.producto_id).single();
+      if (error || !p) return res.status(404).json({ error: 'Producto no encontrado' });
+      if (!p.imagen_url) return res.status(400).json({ error: `${p.nombre} no tiene foto cargada. Agregale la URL de la foto en Stock.` });
+      const { data: foto } = await axios.get(p.imagen_url, { responseType: 'arraybuffer', timeout: 30000 });
+      const { crearPublicacion } = require('./publicacion');
+      const pub = await crearPublicacion({
+        foto: Buffer.from(foto),
+        nombre: p.nombre,
+        precio: Number(p.precio),
+        precioAnterior: Number(req.body.precio_anterior) || null,
+        cuotas: Number(p.cuotas_sin_interes) || 0,
+        detalles: [p.descripcion, req.body.detalles].filter(Boolean).join('. '),
+      });
+      const fila = {
+        producto_id: p.id, producto: p.nombre, precio: p.precio,
+        titulo: pub.titulo, descripcion: pub.descripcion,
+        imagen: 'data:image/jpeg;base64,' + pub.imagen.toString('base64'),
+      };
+      // Una publicación por producto: la nueva reemplaza a la anterior.
+      await supabase.from('publicaciones').delete().eq('producto_id', p.id);
+      responder(res, await supabase.from('publicaciones').insert(fila).select().single());
+    } catch (e) {
+      console.error('Error creando publicación:', e.response?.data || e.message);
+      res.status(500).json({ error: explicarError(e) });
+    }
+  });
+
+  r.delete('/publicaciones/:id', async (req, res) => responder(res, await supabase.from('publicaciones').delete().eq('id', req.params.id)));
 
   // Carga rápida: varios productos de una vez [{ id, costo, precio }]
   r.post('/productos/lote', async (req, res) => {

@@ -7,6 +7,7 @@ Sistema para vender más con menos trabajo manual:
 | **Crea la publicación de Marketplace**: imagen llamativa con tu marca y precio + título + descripción | Panel → pestaña 1 |
 | **Responde consultas de Marketplace**: pegás el mensaje del cliente y te da la respuesta lista para copiar | Panel → pestaña 2 |
 | **Atiende WhatsApp solo, 24/7**: responde, recuerda la charla, cierra la venta y te avisa | Automático |
+| **Sistema de gestión**: clientes, pedidos, stock y finanzas. Las ventas del bot entran solas | `/gestion` |
 
 > **Importante sobre Marketplace:** Facebook no permite que un programa publique ni chatee solo en Marketplace. Si se usa un bot para eso, te bloquean la cuenta. Por eso el sistema te deja **todo listo** (imagen, título, descripción y respuestas) y vos solo copiás y pegás: 1 minuto por producto. En **WhatsApp** sí está permitido, y ahí el bot trabaja 100% solo.
 
@@ -27,7 +28,20 @@ Sistema para vender más con menos trabajo manual:
 4. Truco: llevá al cliente a WhatsApp, donde el bot sigue solo.
 
 ### WhatsApp
-No hacés nada. Cuando un cliente confirma la compra, te llega un WhatsApp con "🛒 NUEVA VENTA" y los datos, y queda guardada en la tabla `pedidos`.
+No hacés nada. Cuando un cliente confirma la compra, te llega un WhatsApp con "🛒 NUEVA VENTA" y los datos, y el pedido aparece en `/gestion` como **pendiente**, con el stock ya descontado.
+
+### Sistema de gestión (`/gestion`)
+Entrá a `https://TU-SERVIDOR/gestion` (misma contraseña que el panel). Funciona en PC y celu y se actualiza solo cada 20 segundos.
+- **Inicio:** ventas y ganancia del mes, pendientes, ventas del bot, alertas de stock.
+- **Pedidos:** los del bot (🤖) y los que cargás a mano (Instagram, Marketplace, presencial). Cambiás el estado desde la lista: pendiente → en camino → entregado. Si cancelás, el stock vuelve solo.
+- **Clientes:** todos los que le escribieron al bot, quién compró, cuánto gastó, quién recompró. Botón directo a su WhatsApp.
+- **Stock:** es la misma tabla que usa el bot. Lo que cambies acá (precio, stock, ocultar un producto) el bot lo usa al toque.
+- **Finanzas:** ingresos, gastos y resultado del mes.
+
+**Desde tu WhatsApp** (el número de `OWNER_PHONE`), mandale al bot:
+- `gasto 15000 marketing Meta Ads` → carga un gasto (categorías: stock, marketing, envíos, operativo, impuestos, otro)
+- `resumen` → ventas, gastos y resultado del mes
+- `ayuda` → lista de comandos
 
 ### Cambiar precios o stock
 Supabase → **Table Editor** → `productos`. El bot usa siempre lo que esté ahí. Sin stock → poné `stock` en 0. Cuotas sin interés → poné la cantidad en `cuotas_sin_interes` (0 = no tiene). Producto que ya no vendés → `activo` en false.
@@ -39,7 +53,7 @@ Editá el archivo `src/negocio.js`.
 
 ## Instalación (una sola vez)
 
-1. **Supabase:** abrí tu proyecto → **SQL Editor** → pegá el contenido de `supabase.sql` → **Run**. Después cargá tus productos reales en la tabla `productos`.
+1. **Supabase:** abrí tu proyecto → **SQL Editor** → pegá el contenido de `supabase.sql` → **Run**. Después corré también `supabase-gestion.sql` (agrega clientes, gastos y el stock automático; se puede correr más de una vez). Cargá tus productos reales en la tabla `productos` o desde `/gestion`.
 2. **Variables:** en tu hosting (Render, Railway, etc.) cargá las variables de `.env.example`:
    - `CLAUDE_API_KEY`, `WHATSAPP_TOKEN`, `PHONE_NUMBER_ID`, `VERIFY_TOKEN`, `SUPABASE_URL`, `SUPABASE_KEY` (las mismas que ya usabas)
    - **Nuevas:** `OWNER_PHONE` (tu número para los avisos de venta, ej `5493584123456`) y `PANEL_PASSWORD` (inventá una contraseña).
@@ -56,5 +70,7 @@ Para probar en tu compu: `npm install`, copiá `.env.example` como `.env`, compl
 - `src/vendedor.js` → cómo habla y vende el bot (las instrucciones de venta)
 - `src/publicacion.js` → arma la imagen y los textos de Marketplace (colores arriba de todo)
 - `src/negocio.js` → datos de tu negocio
-- `public/panel.html` → el panel
-- `supabase.sql` → tablas de la base de datos
+- `public/panel.html` → el panel de Marketplace
+- `src/gestion.js` → ventas, clientes, gastos y la API del sistema de gestión
+- `gestion/App.jsx` → el sistema de gestión (si lo cambiás: `npm i --no-save esbuild react@18 react-dom@18 && node gestion/build.mjs`)
+- `supabase.sql` + `supabase-gestion.sql` → tablas de la base de datos

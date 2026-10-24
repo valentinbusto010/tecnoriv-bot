@@ -5,7 +5,8 @@ const axios = require('axios');
 const multer = require('multer');
 const { responderCliente } = require('./src/vendedor');
 const { crearPublicacion } = require('./src/publicacion');
-const { estadoCatalogo, obtenerHistorial, guardarMensaje, guardarPedido } = require('./src/datos');
+const { estadoCatalogo, obtenerHistorial, guardarMensaje } = require('./src/datos');
+const gestion = require('./src/gestion');
 
 const app = express();
 app.use(express.json());
@@ -73,6 +74,19 @@ app.post('/webhook', async (req, res) => {
     if (procesados.size > 1000) procesados.clear();
 
     const from = message.from;
+    const nombrePerfil = req.body.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.profile?.name || null;
+
+    // Comandos del dueño (gasto, resumen, ayuda): se responden sin pasar por la IA.
+    if (message.type === 'text' && gestion.esDueno(from)) {
+      const respuesta = await gestion.comandoDueno(message.text.body).catch((e) => `Error: ${e.message}`);
+      if (respuesta) {
+        await enviarWhatsApp(from, respuesta);
+        return;
+      }
+    }
+
+    // Todo el que escribe queda como cliente en el sistema de gestión.
+    await gestion.registrarContacto(from, nombrePerfil).catch((e) => console.error('Error registrando cliente:', e.message));
 
     // Audios, stickers, ubicaciones, etc.: respuesta fija, sin gastar IA.
     if (message.type !== 'text' && message.type !== 'image') {
@@ -114,8 +128,14 @@ app.post('/webhook', async (req, res) => {
 
     if (venta) {
       console.log(`VENTA CERRADA con ${from}: ${venta}`);
-      await guardarPedido(from, venta);
-      await avisarDueno(`🛒 NUEVA VENTA\nCliente: +${from}\n${venta}`);
+      const { pedido, duplicado, venta: v } = await gestion.registrarVenta(from, venta, nombrePerfil);
+      if (duplicado) console.log(`Venta repetida de ${from}, no se cargó de nuevo`);
+      else {
+        const detalle = v
+          ? `${v.cantidad > 1 ? v.cantidad + 'x ' : ''}${v.productoTexto} · ${gestion.fmt(v.monto)}${v.producto ? '' : ' ⚠️ producto no encontrado en el catálogo, revisalo'}\n${v.nombre || ''}${v.entrega ? ' · ' + v.entrega : ''}${v.pago ? ' · ' + v.pago : ''}`
+          : venta;
+        await avisarDueno(`🛒 NUEVA VENTA${pedido ? ' #' + pedido.id : ''}\nCliente: +${from}\n${detalle}\nYa está en /gestion como pendiente.`);
+      }
     }
     if (humano) {
       console.log(`DERIVADO A HUMANO ${from}: ${humano}`);
@@ -160,6 +180,11 @@ function chequearClave(req, res, next) {
 }
 
 app.get('/panel', (req, res) => res.sendFile(path.join(__dirname, 'public', 'panel.html')));
+
+// Sistema de gestión: clientes, ventas, pedidos, stock y gastos (misma base que el bot)
+app.get('/gestion', (req, res) => res.sendFile(path.join(__dirname, 'public', 'gestion.html')));
+app.get('/gestion.js', (req, res) => res.sendFile(path.join(__dirname, 'public', 'gestion.js')));
+app.use('/api/gestion', gestion.router(chequearClave));
 
 app.get('/api/estado', chequearClave, async (req, res) => res.json(await estadoCatalogo()));
 
@@ -207,7 +232,7 @@ app.post('/api/responder', chequearClave, async (req, res) => {
 app.get('/privacidad', (req, res) => res.sendFile(path.join(__dirname, 'public', 'privacidad.html')));
 app.get('/eliminar-datos', (req, res) => res.sendFile(path.join(__dirname, 'public', 'eliminar-datos.html')));
 
-app.get('/', (req, res) => res.send('TecnoRiv Bot activo! Panel en /panel'));
+app.get('/', (req, res) => res.send('TecnoRiv Bot activo! Panel en /panel · Gestión en /gestion'));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Servidor corriendo en puerto ${PORT}`));

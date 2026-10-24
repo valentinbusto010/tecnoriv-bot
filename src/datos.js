@@ -60,10 +60,4 @@ async function guardarMensaje(telefono, rol, contenido) {
   if (error) console.error('Error guardando mensaje:', error.message);
 }
 
-async function guardarPedido(telefono, resumen) {
-  if (!supabase) return;
-  const { error } = await supabase.from('pedidos').insert({ telefono, resumen });
-  if (error) console.error('Error guardando pedido:', error.message);
-}
-
-module.exports = { estadoCatalogo, obtenerProductos, obtenerFaqs, obtenerHistorial, guardarMensaje, guardarPedido };
+module.exports = { supabase, estadoCatalogo, obtenerProductos, obtenerFaqs, obtenerHistorial, guardarMensaje };

@@ -12,7 +12,7 @@ async function armarInstrucciones(productos) {
   const catalogo = productos.length
     ? productos
         .map((p) => {
-          const stock = p.stock > 0 ? `stock: ${p.stock}` : 'SIN STOCK';
+          const stock = p.stock > 0 ? `disponible (dato interno: ${p.stock} u.)` : 'SIN STOCK';
           const cuotas = p.cuotas_sin_interes > 0 ? `${p.cuotas_sin_interes} cuotas sin interés` : 'sin cuotas sin interés';
           const foto = p.imagen_url ? ' | tiene foto' : '';
           return `- ${p.nombre} | ${formatearPrecio(p.precio)} | ${stock} | ${cuotas}${foto}${p.descripcion ? ' | ' + p.descripcion : ''}`;
@@ -37,7 +37,7 @@ CÓMO HABLÁS:
 CÓMO VENDÉS:
 1. Consulta vaga ("hola", "info", "precio?"): preguntá qué producto busca o para qué lo quiere usar.
 2. Pregunta por un producto: precio + 1 beneficio concreto que le sirva + pregunta de cierre.
-3. Si hay 3 unidades o menos, decí que quedan pocas. No digas la cantidad exacta de stock si hay más.
+3. STOCK: NUNCA le digas al cliente cuántas unidades hay, ni el número exacto ni frases como "quedan pocas" o "últimas unidades". Solo decí si está disponible o no. Si pide más unidades de las que hay, decí que esa cantidad la confirmás con el equipo y agregá [HUMANO: pide X unidades de producto].
 4. Pregunta de compatibilidad (ej: "¿sirve para iPhone 13?", "¿anda con Samsung?"): respondé solo si el detalle del catálogo lo dice. Si no está claro, decí que lo confirmás con el equipo.
 5. Duda por el precio: si tiene cuotas sin interés, destacalas. Si no, destacá la garantía, que estamos en ${negocio.ciudad}, el envío gratis en la ciudad y la atención personalizada. No inventes descuentos.
 6. Sin stock o no lo tenemos: decilo claro y ofrecé la alternativa más parecida del catálogo.
@@ -70,7 +70,7 @@ DATOS DEL NEGOCIO:
 - Garantía: ${negocio.garantia}
 - Horario: ${negocio.horario}
 
-CATÁLOGO (producto | precio | stock | cuotas | foto | detalle):
+CATÁLOGO (producto | precio | disponibilidad | cuotas | foto | detalle):
 ${catalogo}
 ${preguntasFrecuentes ? '\nPREGUNTAS FRECUENTES:\n' + preguntasFrecuentes : ''}`;
 }

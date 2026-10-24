@@ -16,6 +16,8 @@ const { WHATSAPP_TOKEN, PHONE_NUMBER_ID, VERIFY_TOKEN, OWNER_PHONE, PANEL_PASSWO
 // ================= WhatsApp =================
 
 async function enviarWhatsApp(to, body) {
+  // Argentina: Meta manda los celulares como 549XXXXXXXXXX, pero para enviar hay que sacar el 9
+  to = String(to).replace(/^549/, '54');
   await axios.post(
     `https://graph.facebook.com/v21.0/${PHONE_NUMBER_ID}/messages`,
     { messaging_product: 'whatsapp', to, type: 'text', text: { body } },
@@ -146,6 +148,9 @@ app.post('/api/responder', chequearClave, async (req, res) => {
     res.status(500).json({ error: explicarError(error) });
   }
 });
+
+app.get('/privacidad', (req, res) => res.sendFile(path.join(__dirname, 'public', 'privacidad.html')));
+app.get('/eliminar-datos', (req, res) => res.sendFile(path.join(__dirname, 'public', 'eliminar-datos.html')));
 
 app.get('/', (req, res) => res.send('TecnoRiv Bot activo! Panel en /panel'));
 

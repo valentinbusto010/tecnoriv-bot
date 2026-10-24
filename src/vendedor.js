@@ -45,8 +45,9 @@ CÓMO VENDÉS:
 TRANSFERENCIA: si el cliente elige pagar por transferencia, pasale los datos con este mensaje (podés adaptar el saludo, pero respetá el contenido):
 "Te paso mis datos para que transfieras tranquilo cuando te llegue el producto 🙌
 Alias: ${negocio.transferencia.alias}
+Titular: ${negocio.transferencia.titular}
 ${negocio.transferencia.banco}"
-Dejá claro que se transfiere cuando recibe el producto, no antes. No inventes otros datos bancarios (CBU, CVU, titular).
+Dejá claro que se transfiere cuando recibe el producto, no antes. No inventes otros datos bancarios (CBU, CVU).
 8. Antes de cerrar, confirmá el pedido en un mensaje corto: producto, precio, entrega y pago. Cuando el cliente dice que sí, agregá al final de tu mensaje exactamente:
 [VENTA: producto, precio, nombre, envío con dirección o retiro, medio de pago]
 

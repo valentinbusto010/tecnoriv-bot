@@ -35,23 +35,64 @@ app.get('/webhook', (req, res) => {
 
 const procesados = new Set(); // evita responder dos veces si Meta reenvía el mismo mensaje
 
+// Descarga una foto que mandó el cliente (Meta da un ID, hay que pedir la URL y después bajarla).
+async function descargarMedia(mediaId) {
+  const auth = { Authorization: `Bearer ${WHATSAPP_TOKEN}` };
+  const { data: info } = await axios.get(`https://graph.facebook.com/v21.0/${mediaId}`, { headers: auth });
+  const { data } = await axios.get(info.url, { headers: auth, responseType: 'arraybuffer' });
+  return { base64: Buffer.from(data).toString('base64'), mimeType: info.mime_type };
+}
+
+const AVISO_AUDIO = 'Por ahora no puedo escuchar audios 🙏 ¿Me lo escribís? Así te respondo al toque.';
+const AVISO_OTRO = 'Por ahora solo puedo leer mensajes de texto y fotos. ¿Me escribís tu consulta? 🙌';
+
+async function avisarDueno(texto) {
+  if (!OWNER_PHONE) return;
+  await enviarWhatsApp(OWNER_PHONE, texto).catch((e) =>
+    console.error('No se pudo avisar al dueño:', e.response?.data?.error?.message || e.message)
+  );
+}
+
 app.post('/webhook', async (req, res) => {
   res.sendStatus(200); // respondemos a Meta al instante, después procesamos
 
   try {
     if (req.body.object !== 'whatsapp_business_account') return;
     const message = req.body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
-    if (!message || message.type !== 'text' || procesados.has(message.id)) return;
+    if (!message || procesados.has(message.id)) return;
     procesados.add(message.id);
     if (procesados.size > 1000) procesados.clear();
 
     const from = message.from;
-    const text = message.text.body.trim();
+
+    // Audios, stickers, ubicaciones, etc.: respuesta fija, sin gastar IA.
+    if (message.type !== 'text' && message.type !== 'image') {
+      console.log(`Mensaje de ${from}: [${message.type}]`);
+      const aviso = message.type === 'audio' ? AVISO_AUDIO : AVISO_OTRO;
+      await enviarWhatsApp(from, aviso);
+      await guardarMensaje(from, 'user', `[El cliente mandó un ${message.type}]`);
+      await guardarMensaje(from, 'assistant', aviso);
+      return;
+    }
+
+    let text;
+    let imagen = null;
+    if (message.type === 'image') {
+      const caption = message.image.caption?.trim() || '';
+      text = `[El cliente mandó una foto]${caption ? ' ' + caption : ''}`;
+      try {
+        imagen = await descargarMedia(message.image.id);
+      } catch (e) {
+        console.error('No se pudo descargar la foto:', e.response?.data?.error?.message || e.message);
+      }
+    } else {
+      text = message.text.body.trim();
+    }
     console.log(`Mensaje de ${from}: ${text}`);
 
     const historial = await obtenerHistorial(from);
     await guardarMensaje(from, 'user', text);
-    const { texto, venta } = await responderCliente([...historial, { role: 'user', content: text }]);
+    const { texto, venta, humano } = await responderCliente([...historial, { role: 'user', content: text }], imagen);
 
     await enviarWhatsApp(from, texto);
     await guardarMensaje(from, 'assistant', texto);
@@ -60,11 +101,11 @@ app.post('/webhook', async (req, res) => {
     if (venta) {
       console.log(`VENTA CERRADA con ${from}: ${venta}`);
       await guardarPedido(from, venta);
-      if (OWNER_PHONE) {
-        await enviarWhatsApp(OWNER_PHONE, `🛒 NUEVA VENTA\nCliente: +${from}\n${venta}`).catch((e) =>
-          console.error('No se pudo avisar al dueño:', e.response?.data?.error?.message || e.message)
-        );
-      }
+      await avisarDueno(`🛒 NUEVA VENTA\nCliente: +${from}\n${venta}`);
+    }
+    if (humano) {
+      console.log(`DERIVADO A HUMANO ${from}: ${humano}`);
+      await avisarDueno(`🙋 UN CLIENTE NECESITA ATENCIÓN\nCliente: +${from}\nMotivo: ${humano}\nÚltimo mensaje: ${text}`);
     }
   } catch (error) {
     console.error('Error:', error.response?.data || error.message);

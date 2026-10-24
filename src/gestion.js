@@ -166,22 +166,33 @@ async function cargarGasto(texto) {
   return `✅ Gasto cargado: ${fmt(monto)} · ${categoria} · ${descripcion}`;
 }
 
+// Ganancia real = ventas − costo de lo vendido − gastos que no son compra de mercadería.
+// Los gastos "Stock" no se restan: esa plata ya está contada en el costo de cada venta.
+function margenReal(pedidos, gastos) {
+  const ventas = pedidos.reduce((a, p) => a + Number(p.monto), 0);
+  const costoVendido = pedidos.reduce((a, p) => a + (Number(p.costo) || 0), 0);
+  const gastosOperativos = gastos.filter((g) => g.categoria !== 'Stock').reduce((a, g) => a + Number(g.monto), 0);
+  const sinCosto = pedidos.filter((p) => p.costo === null || p.costo === undefined).length;
+  return { ventas, costoVendido, gastosOperativos, ganancia: ventas - costoVendido - gastosOperativos, sinCosto };
+}
+
 async function resumenMes() {
   const inicio = hoyAR().slice(0, 8) + '01';
   const [{ data: pedidos }, { data: gastos }, { data: productos }] = await Promise.all([
-    supabase.from('pedidos').select('monto, estado').gte('fecha', inicio),
-    supabase.from('gastos').select('monto').gte('fecha', inicio),
+    supabase.from('pedidos').select('monto, estado, costo').gte('fecha', inicio),
+    supabase.from('gastos').select('monto, categoria').gte('fecha', inicio),
     supabase.from('productos').select('nombre, stock, alerta').eq('activo', true),
   ]);
   const validos = (pedidos || []).filter((p) => p.estado !== 'cancelado');
   const ventas = validos.reduce((a, p) => a + Number(p.monto), 0);
-  const gasto = (gastos || []).reduce((a, g) => a + Number(g.monto), 0);
+  const m = margenReal(validos, gastos || []);
   const pendientes = validos.filter((p) => p.estado === 'pendiente').length;
   const bajo = (productos || []).filter((p) => p.stock <= p.alerta).map((p) => `${p.nombre} (${p.stock})`);
   return `📊 Resumen del mes
 Ventas: ${fmt(ventas)} (${validos.length} pedidos)
-Gastos: ${fmt(gasto)}
-Resultado: ${fmt(ventas - gasto)}
+Costo de lo vendido: ${fmt(m.costoVendido)}
+Gastos operativos: ${fmt(m.gastosOperativos)}
+💰 Ganancia real: ${fmt(m.ganancia)}${ventas ? ` (${Math.round((m.ganancia / ventas) * 100)}% de las ventas)` : ''}${m.sinCosto ? `\n⚠️ ${m.sinCosto} venta${m.sinCosto > 1 ? 's' : ''} sin costo cargado: la ganancia real es menor` : ''}
 Pendientes de entregar: ${pendientes}${bajo.length ? `\n⚠️ Stock bajo: ${bajo.join(', ')}` : ''}`;
 }
 
@@ -196,6 +207,8 @@ async function comandoDueno(texto) {
 }
 
 // ───────── API DEL PANEL /gestion ─────────
+
+const AJUSTES_DEFECTO = { margen_objetivo: 40, dias_costo_viejo: 30, redondeo_precio: 500 };
 
 const CAMPOS = {
   productos: ['nombre', 'categoria', 'precio', 'costo', 'stock', 'alerta', 'descripcion', 'cuotas_sin_interes', 'activo', 'imagen_url'],
@@ -238,7 +251,31 @@ function router(chequearClave) {
       const falta = /does not exist|schema cache|column/i.test(error.message);
       return res.status(500).json({ error: falta ? `Falta correr supabase-gestion.sql en Supabase (${error.message})` : error.message });
     }
-    res.json({ productos: productos.data, pedidos: pedidos.data, gastos: gastos.data, clientes: clientes.data });
+    // Ajustes del margen: si todavía no se corrió supabase-margen.sql, usa los valores por defecto.
+    const aj = await supabase.from('ajustes').select('clave, valor');
+    const ajustes = { ...AJUSTES_DEFECTO, ...Object.fromEntries((aj.data || []).map((a) => [a.clave, Number(a.valor)])) };
+    res.json({ productos: productos.data, pedidos: pedidos.data, gastos: gastos.data, clientes: clientes.data, ajustes, faltaMargen: Boolean(aj.error) });
+  });
+
+  r.put('/ajustes/:clave', async (req, res) => {
+    const { clave } = req.params;
+    const valor = Number(req.body.valor);
+    if (!(clave in AJUSTES_DEFECTO) || !Number.isFinite(valor) || valor < 0) return res.status(400).json({ error: 'Valor inválido' });
+    responder(res, await supabase.from('ajustes').upsert({ clave, valor }, { onConflict: 'clave' }).select().single());
+  });
+
+  // Carga rápida: varios productos de una vez [{ id, costo, precio }]
+  r.post('/productos/lote', async (req, res) => {
+    const filas = Array.isArray(req.body) ? req.body.slice(0, 500) : [];
+    const errores = [];
+    for (const f of filas) {
+      const cambios = limpiar('productos', f);
+      if (!f.id || !Object.keys(cambios).length) continue;
+      const { error } = await supabase.from('productos').update(cambios).eq('id', f.id);
+      if (error) errores.push(error.message);
+    }
+    if (errores.length) return res.status(400).json({ error: errores[0] });
+    res.json({ ok: true, actualizados: filas.length });
   });
 
   // Pedido cargado a mano: resuelve el producto y el cliente.
@@ -283,4 +320,4 @@ function router(chequearClave) {
   return r;
 }
 
-module.exports = { registrarContacto, registrarVenta, parsearVenta, comandoDueno, esDueno, router, fmt };
+module.exports = { registrarContacto, registrarVenta, parsearVenta, comandoDueno, esDueno, router, fmt, margenReal };

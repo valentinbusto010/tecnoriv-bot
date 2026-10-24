@@ -1,0 +1,18 @@
+{
+  "name": "Gestión Tecno Riv",
+  "short_name": "Tecno Riv",
+  "description": "Pedidos, clientes, stock y finanzas de Tecno Riv, conectado al bot de WhatsApp.",
+  "id": "/gestion",
+  "start_url": "/gestion",
+  "scope": "/gestion",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#080b12",
+  "theme_color": "#080b12",
+  "lang": "es-AR",
+  "icons": [
+    { "src": "/app/icono-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/app/icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/app/icono-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -184,6 +184,12 @@ app.get('/panel', (req, res) => res.sendFile(path.join(__dirname, 'public', 'pan
 // Sistema de gestión: clientes, ventas, pedidos, stock y gastos (misma base que el bot)
 app.get('/gestion', (req, res) => res.sendFile(path.join(__dirname, 'public', 'gestion.html')));
 app.get('/gestion.js', (req, res) => res.sendFile(path.join(__dirname, 'public', 'gestion.js')));
+// App instalable: el service worker no se cachea para que siempre tome la última versión.
+app.get('/gestion-sw.js', (req, res) => {
+  res.set('Cache-Control', 'no-cache');
+  res.sendFile(path.join(__dirname, 'public', 'gestion-sw.js'));
+});
+app.use('/app', express.static(path.join(__dirname, 'public', 'app'), { maxAge: '7d' }));
 app.use('/api/gestion', gestion.router(chequearClave));
 
 app.get('/api/estado', chequearClave, async (req, res) => res.json(await estadoCatalogo()));

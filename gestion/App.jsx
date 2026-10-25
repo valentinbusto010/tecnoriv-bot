@@ -581,6 +581,7 @@ const Marketplace = ({ productos, inicial }) => {
   const [generando, setGenerando] = useState(null);
   const [sel, setSel] = useState(inicial ? String(inicial) : "");
   const [copiado, setCopiado] = useState("");
+  const [visor, setVisor] = useState(null);
   const conFoto = productos.filter(p => p.activo !== false && p.imagen_url);
 
   const cargar = useCallback(async () => {
@@ -602,11 +603,10 @@ const Marketplace = ({ productos, inicial }) => {
   };
   const precioActual = (pub) => productos.find(p => p.id === pub.producto_id)?.precio;
   const yaTiene = (id) => (pubs || []).some(x => String(x.producto_id) === String(id));
-  const archivo = (n) => n.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + ".jpg";
 
   return (
     <div>
-      <p style={{ color: "#9ca3af", fontSize: "13px", margin: "0 0 14px" }}>Generá la publicación con la foto del producto. Después, desde el celu: descargá la imagen, copiá título y descripción, y pegalos en Marketplace.</p>
+      <p style={{ color: "#9ca3af", fontSize: "13px", margin: "0 0 14px" }}>Generá la publicación con la foto del producto. Después, desde el celu: tocá "Guardar imagen" (se abre Compartir → Guardar imagen), copiá título y descripción, y pegalos en Marketplace.</p>
       <div style={{ display: "flex", gap: "8px", marginBottom: "12px", flexWrap: "wrap" }}>
         <select value={sel} onChange={e => setSel(e.target.value)} style={{ ...fieldSt, flex: 1, minWidth: "200px" }}>
           <option value="">Elegí un producto…</option>
@@ -628,9 +628,9 @@ const Marketplace = ({ productos, inicial }) => {
                     <button onClick={async () => { if (confirm("¿Borrar esta publicación?")) { await api(`/publicaciones/${pub.id}`, "DELETE").catch(e => setError(e.message)); cargar(); } }} title="Borrar" style={iconBtn}><Icon name="trash" size={14} /></button>
                   </span>
                 </div>
-                <img src={pub.imagen} alt={pub.titulo} style={{ width: "100%", maxWidth: "360px", borderRadius: "10px", display: "block", marginBottom: "10px" }} />
+                <img src={pub.imagen} alt={pub.titulo} onClick={() => setVisor([{ src: pub.imagen, nombre: pub.producto }])} style={{ width: "100%", maxWidth: "360px", borderRadius: "10px", display: "block", marginBottom: "10px", cursor: "zoom-in" }} />
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "10px" }}>
-                  <a href={pub.imagen} download={archivo(pub.producto)} style={{ ...chipSt(true), textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "4px" }}><Icon name="download" size={12} /> Descargar imagen</a>
+                  <button onClick={() => guardarImagenes([{ src: pub.imagen, nombre: pub.producto }], setVisor)} style={{ ...chipSt(true), display: "inline-flex", alignItems: "center", gap: "4px" }}><Icon name="download" size={12} /> Guardar imagen</button>
                   <button onClick={() => copiar("t" + pub.id, pub.titulo)} style={chipSt(false)}>{copiado === "t" + pub.id ? "✓ Copiado" : "Copiar título"}</button>
                   <button onClick={() => copiar("d" + pub.id, pub.descripcion)} style={chipSt(false)}>{copiado === "d" + pub.id ? "✓ Copiada" : "Copiar descripción"}</button>
                 </div>
@@ -640,6 +640,63 @@ const Marketplace = ({ productos, inicial }) => {
             );
           })}
         </div>}
+      {visor && <Visor items={visor} onClose={() => setVisor(null)} />}
+    </div>
+  );
+};
+
+// ─── GUARDAR IMÁGENES ──────────────────────────────────────────────────────────
+// En el celu, los navegadores bloquean las descargas de imágenes generadas (sobre todo con la app instalada).
+// Por eso en el celu se abre el menú Compartir del teléfono ("Guardar imagen" / "Guardar en Fotos").
+// En la compu se descarga normal. Si nada de eso funciona, se abre la imagen grande para guardarla a mano.
+const nombreArchivo = (n, mime) => (n || "imagen").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + (/png/.test(mime) ? ".png" : ".jpg");
+// Convierte la imagen (data URL) en archivo sin esperar nada: el teléfono exige que Compartir salga "al toque" del tap.
+function aArchivo(src, nombre) {
+  const [cab, datos] = String(src).split(",");
+  const mime = (cab.match(/data:([^;]+)/) || [])[1] || "image/jpeg";
+  const bin = atob(datos || "");
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new File([bytes], nombreArchivo(nombre, mime), { type: mime });
+}
+const esCelu = () => typeof window !== "undefined" && (window.matchMedia?.("(pointer: coarse)").matches || /android|iphone|ipad|ipod/i.test(navigator.userAgent));
+
+// items: [{ src, nombre }]. Devuelve "compartido" | "descargado" | "cancelado" | "visor".
+async function guardarImagenes(items, abrirVisor) {
+  let archivos;
+  try { archivos = items.map(i => aArchivo(i.src, i.nombre)); } catch { abrirVisor?.(items); return "visor"; }
+  if (esCelu() && navigator.canShare?.({ files: archivos })) {
+    try { await navigator.share({ files: archivos }); return "compartido"; }
+    catch (e) { if (e?.name === "AbortError") return "cancelado"; }
+  }
+  if (!esCelu()) {
+    for (const f of archivos) {
+      const url = URL.createObjectURL(f);
+      const a = document.createElement("a"); a.href = url; a.download = f.name; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      await new Promise(r => setTimeout(r, 350));
+    }
+    return "descargado";
+  }
+  abrirVisor?.(items);
+  return "visor";
+}
+
+// Imagen a pantalla completa: en el celu se guarda manteniéndola apretada.
+const Visor = ({ items, onClose }) => {
+  const [i, setI] = useState(0);
+  if (!items?.length) return null;
+  const it = items[Math.min(i, items.length - 1)];
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.94)", zIndex: 3000, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "16px", gap: "12px" }}>
+      <div style={{ color: "#fff", fontSize: "14px", fontWeight: 700, textAlign: "center" }}>Mantené apretada la imagen y elegí <span style={{ color: "#60a5fa" }}>"Guardar imagen"</span> o <span style={{ color: "#60a5fa" }}>"Agregar a Fotos"</span></div>
+      <img src={it.src} alt={it.nombre} onClick={e => e.stopPropagation()} style={{ maxWidth: "100%", maxHeight: "72vh", borderRadius: "10px", WebkitTouchCallout: "default", userSelect: "auto" }} />
+      <div onClick={e => e.stopPropagation()} style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+        {items.length > 1 && <button onClick={() => setI(Math.max(0, i - 1))} disabled={i === 0} style={chipSt(false)}>‹ Anterior</button>}
+        {items.length > 1 && <span style={{ color: "#9ca3af", fontSize: "13px" }}>{i + 1} de {items.length}</span>}
+        {items.length > 1 && <button onClick={() => setI(Math.min(items.length - 1, i + 1))} disabled={i === items.length - 1} style={chipSt(false)}>Siguiente ›</button>}
+      </div>
+      <button onClick={onClose} style={chipSt(true)}>Cerrar</button>
     </div>
   );
 };
@@ -651,6 +708,7 @@ const Instagram = ({ ajustes }) => {
   const [error, setError] = useState("");
   const [generando, setGenerando] = useState(false);
   const [copiado, setCopiado] = useState(false);
+  const [visor, setVisor] = useState(null);
   const promo = promoDe(ajustes);
 
   const cargar = useCallback(async () => {
@@ -664,8 +722,9 @@ const Instagram = ({ ajustes }) => {
     catch (e) { setError(e.message); }
     finally { setGenerando(false); }
   };
-  const descargar = (p) => { const a = document.createElement("a"); a.href = p.imagen; a.download = p.nombre.replace(/[^\w-]+/g, "_") + ".jpg"; document.body.appendChild(a); a.click(); a.remove(); };
-  const descargarTodo = async (lista) => { for (const p of lista) { descargar(p); await new Promise(r => setTimeout(r, 400)); } };
+  const items = (lista) => lista.map(p => ({ src: p.imagen, nombre: p.nombre }));
+  const descargar = (p) => guardarImagenes(items([p]), setVisor);
+  const descargarTodo = (lista) => guardarImagenes(items(lista), setVisor);
   const historias = (piezas || []).filter(p => p.formato === "historia");
   const carrusel = (piezas || []).filter(p => p.formato === "carrusel");
   const cap = (piezas || []).find(p => p.formato === "caption");
@@ -675,8 +734,8 @@ const Instagram = ({ ajustes }) => {
   };
   const miniatura = (p, alto) => (
     <div key={p.id} style={{ textAlign: "center" }}>
-      <img src={p.imagen} alt={p.nombre} style={{ height: alto, borderRadius: "8px", display: "block", marginBottom: "6px" }} />
-      <button onClick={() => descargar(p)} style={{ ...chipSt(false), padding: "4px 10px", fontSize: "11px" }}>Descargar</button>
+      <img src={p.imagen} alt={p.nombre} onClick={() => setVisor(items([p]))} style={{ height: alto, borderRadius: "8px", display: "block", marginBottom: "6px", cursor: "zoom-in" }} />
+      <button onClick={() => descargar(p)} style={{ ...chipSt(false), padding: "4px 10px", fontSize: "11px" }}>Guardar</button>
     </div>
   );
 
@@ -692,14 +751,14 @@ const Instagram = ({ ajustes }) => {
         <div style={{ maxHeight: "62vh", overflowY: "auto" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "4px 0 8px" }}>
             <span style={sectionLabel}>Historias · subilas en orden</span>
-            <button onClick={() => descargarTodo(historias)} style={chipSt(true)}>Descargar las {historias.length}</button>
+            <button onClick={() => descargarTodo(historias)} style={chipSt(true)}>Guardar las {historias.length}</button>
           </div>
           <div style={{ display: "flex", gap: "10px", overflowX: "auto", paddingBottom: "6px" }}>{historias.map(p => miniatura(p, "240px"))}</div>
           <p style={{ color: "#6b7280", fontSize: "12px", margin: "6px 0 16px" }}>En la historia 3 agregá el sticker <b>Enlace</b> con tu link de WhatsApp (wa.me/5493585764330).</p>
 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "4px 0 8px" }}>
             <span style={sectionLabel}>Carrusel · {carrusel.length} fotos en este orden</span>
-            <button onClick={() => descargarTodo(carrusel)} style={chipSt(true)}>Descargar las {carrusel.length}</button>
+            <button onClick={() => descargarTodo(carrusel)} style={chipSt(true)}>Guardar las {carrusel.length}</button>
           </div>
           <div style={{ display: "flex", gap: "10px", overflowX: "auto", paddingBottom: "6px", marginBottom: "16px" }}>{carrusel.map(p => miniatura(p, "200px"))}</div>
 
@@ -712,6 +771,7 @@ const Instagram = ({ ajustes }) => {
           </>}
         </div>
       )}
+      {visor && <Visor items={visor} onClose={() => setVisor(null)} />}
     </div>
   );
 };

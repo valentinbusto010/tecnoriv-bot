@@ -304,13 +304,26 @@ function router(chequearClave, explicarError = (e) => e.message) {
       if (!p.imagen_url) return res.status(400).json({ error: `${p.nombre} no tiene foto cargada. Agregale la URL de la foto en Stock.` });
       const { data: foto } = await axios.get(p.imagen_url, { responseType: 'arraybuffer', timeout: 30000 });
       const { crearPublicacion } = require('./publicacion');
+      // Con promo vigente: precio con descuento, el de lista tachado y la promo en el texto.
+      const promo = await promoVigente();
+      const lista = Number(p.precio);
+      const conPromo = promo && promo.descuento ? precioPromo(lista, promo) : lista;
+      const { fechaCorta } = require('./promo');
+      let textoPromo = '';
+      if (promo) {
+        if (promo.descuento) textoPromo += `PROMO DE REGRESO: ${promo.descuento}% OFF hasta el ${fechaCorta(promo.hasta)}. `;
+        if (promo.regaloId && (p.categoria || '') === promo.regaloCategoria) {
+          const { data: regalo } = await supabase.from('productos').select('nombre, stock').eq('id', promo.regaloId).maybeSingle();
+          if (regalo?.stock > 0) textoPromo += `De regalo: ${regalo.nombre} (hasta agotar stock). `;
+        }
+      }
       const pub = await crearPublicacion({
         foto: Buffer.from(foto),
         nombre: p.nombre,
-        precio: Number(p.precio),
-        precioAnterior: Number(req.body.precio_anterior) || null,
+        precio: conPromo,
+        precioAnterior: conPromo < lista ? lista : Number(req.body.precio_anterior) || null,
         cuotas: Number(p.cuotas_sin_interes) || 0,
-        detalles: [p.descripcion, req.body.detalles].filter(Boolean).join('. '),
+        detalles: [p.descripcion, req.body.detalles, textoPromo && textoPromo + 'Mencioná la promo y su fecha límite (es real, la dijo el dueño).'].filter(Boolean).join('. '),
       });
       const fila = {
         producto_id: p.id, producto: p.nombre, precio: p.precio,

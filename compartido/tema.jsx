@@ -92,7 +92,7 @@ const CSS_MARCA = `
 .tr-marca{position:relative;height:300px;perspective:1100px;display:flex;align-items:center;justify-content:center}
 .tr-marca .tr-glow{bottom:40px;width:300px;margin-left:-150px;height:40px}
 .tr-cartel-wrap{position:relative;width:340px;height:92px;transform-style:preserve-3d;animation:trBob 6s ease-in-out infinite}
-.tr-cartel{position:absolute;inset:0;transform-style:preserve-3d;animation:trGiro 8s cubic-bezier(.65,0,.35,1) infinite}
+.tr-cartel{position:absolute;inset:0;transform-style:preserve-3d;animation:trGiro 6s linear infinite;will-change:transform}
 .tr-cartel .cara{position:absolute;inset:0;border-radius:12px;display:flex;align-items:center;justify-content:center;backface-visibility:hidden;-webkit-backface-visibility:hidden;overflow:hidden;
   background:linear-gradient(180deg,#141c2c 0%,#070b14 55%,#04070d 100%);
   border:2px solid rgba(150,205,255,.75);
@@ -103,10 +103,10 @@ const CSS_MARCA = `
 .tr-cartel .frente{transform:translateZ(${GROSOR / 2}px)}
 .tr-cartel .dorso{transform:rotateY(180deg) translateZ(${GROSOR / 2}px)}
 .tr-cartel .canto{position:absolute;inset:0;border-radius:12px;background:#0a1730;border:2px solid rgba(70,140,255,.55)}
-@keyframes trGiro{0%{transform:rotateX(10deg) rotateY(0)}35%{transform:rotateX(10deg) rotateY(0)}65%{transform:rotateX(10deg) rotateY(360deg)}100%{transform:rotateX(10deg) rotateY(360deg)}}
+@keyframes trGiro{from{transform:rotateX(10deg) rotateY(0deg)}to{transform:rotateX(10deg) rotateY(360deg)}}
 @keyframes trSheen{0%,55%{transform:translateX(-130%)}80%,100%{transform:translateX(130%)}}
 @media (max-width:620px){.tr-marca{height:200px}.tr-cartel-wrap{width:270px;height:74px}.tr-cartel .cara span{font-size:39px}.tr-marca .tr-glow{bottom:28px;width:240px;margin-left:-120px}}
-@media (prefers-reduced-motion:reduce){.tr-cartel,.tr-cartel-wrap,.tr-cartel .cara::after{animation:none!important}}
+@media (prefers-reduced-motion:reduce){.tr-cartel{animation:trGiro 12s linear infinite!important}.tr-cartel-wrap,.tr-cartel .cara::after{animation:none!important}}
 `;
 
 export const Marca3D = ({ alto }) => {

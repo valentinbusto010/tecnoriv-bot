@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 // Estilo visual compartido de Tecno Riv (/gestion y /contenido):
 // fondo minimalista con grilla y luces, tarjetas de vidrio y escena 3D animada.
 // Si lo cambiás, rearmá las dos apps: node gestion/build.mjs && node contenido/build.mjs
@@ -86,38 +85,42 @@ export const Escena3D = ({ imagenes = [], alto = 260, etiquetas = ["IG", "TR", "
   );
 };
 
-// ─── MARCA 3D: tu logo en una placa 3D con espesor que flota, gira suave y brilla ───
-// El logo sale de /marca/logo (se sube desde /contenido). Si no hay, muestra "TR".
+// ─── MARCA 3D: el cartel "TECNO" como objeto 3D con espesor que gira ───
+// Vector puro (se ve nítido en cualquier pantalla). Fuente Michroma, cargada en contenido.html.
+const GROSOR = 22; // px de espesor del cartel
 const CSS_MARCA = `
-.tr-marca{position:relative;height:320px;perspective:1000px;display:flex;align-items:center;justify-content:center}
-.tr-marca .tr-glow{bottom:14px;width:240px;margin-left:-120px;height:46px}
-.tr-logo-wrap{position:relative;width:230px;height:230px;transform-style:preserve-3d;animation:trBob 6s ease-in-out infinite}
-.tr-logo3d{position:absolute;inset:0;transform-style:preserve-3d;animation:trLogo 10s ease-in-out infinite}
-.tr-logo3d .placa{position:absolute;inset:0;border-radius:26px;overflow:hidden;transform:translateZ(9px);background:#071530;box-shadow:0 0 0 1px rgba(160,215,255,.35),0 0 50px rgba(30,182,255,.28);display:flex;align-items:center;justify-content:center}
-.tr-logo3d .placa img{width:100%;height:100%;object-fit:cover;display:block}
-.tr-logo3d .placa b{font-size:96px;font-weight:900;letter-spacing:-.06em;color:#fff;text-shadow:0 4px 0 #0a3a8a,0 10px 20px rgba(0,0,0,.5)}
-.tr-logo3d .placa::after{content:"";position:absolute;inset:0;background:linear-gradient(115deg,transparent 32%,rgba(255,255,255,.42) 46%,transparent 60%);transform:translateX(-130%);animation:trSheen 5s ease-in-out infinite}
-.tr-logo3d .placa::before{content:"";position:absolute;inset:0;z-index:1;border-radius:inherit;box-shadow:inset 0 1px 0 rgba(255,255,255,.35),inset 0 0 30px rgba(0,0,0,.25);pointer-events:none}
-.tr-logo3d .canto{position:absolute;inset:0;border-radius:26px;background:linear-gradient(135deg,#1a5fd0,#062048 60%,#020a1c)}
-@keyframes trLogo{0%,100%{transform:rotateY(-24deg) rotateX(10deg)}50%{transform:rotateY(24deg) rotateX(4deg)}}
+.tr-marca{position:relative;height:300px;perspective:1100px;display:flex;align-items:center;justify-content:center}
+.tr-marca .tr-glow{bottom:40px;width:300px;margin-left:-150px;height:40px}
+.tr-cartel-wrap{position:relative;width:340px;height:92px;transform-style:preserve-3d;animation:trBob 6s ease-in-out infinite}
+.tr-cartel{position:absolute;inset:0;transform-style:preserve-3d;animation:trGiro 8s cubic-bezier(.65,0,.35,1) infinite}
+.tr-cartel .cara{position:absolute;inset:0;border-radius:12px;display:flex;align-items:center;justify-content:center;backface-visibility:hidden;-webkit-backface-visibility:hidden;overflow:hidden;
+  background:linear-gradient(180deg,#141c2c 0%,#070b14 55%,#04070d 100%);
+  border:2px solid rgba(150,205,255,.75);
+  box-shadow:0 0 18px rgba(30,150,255,.75),0 0 46px rgba(30,120,255,.45),inset 0 0 14px rgba(80,170,255,.35),inset 0 1px 0 rgba(255,255,255,.35)}
+.tr-cartel .cara span{font-family:'Michroma','Space Grotesk',sans-serif;font-size:50px;line-height:1;letter-spacing:.05em;color:#fff;padding-left:.05em;
+  text-shadow:0 0 6px rgba(255,255,255,.55),0 0 18px rgba(120,190,255,.55)}
+.tr-cartel .cara::after{content:"";position:absolute;inset:-2px;background:linear-gradient(105deg,transparent 35%,rgba(255,255,255,.38) 48%,transparent 60%);transform:translateX(-130%);animation:trSheen 4s ease-in-out infinite}
+.tr-cartel .frente{transform:translateZ(${GROSOR / 2}px)}
+.tr-cartel .dorso{transform:rotateY(180deg) translateZ(${GROSOR / 2}px)}
+.tr-cartel .canto{position:absolute;inset:0;border-radius:12px;background:#0a1730;border:2px solid rgba(70,140,255,.55)}
+@keyframes trGiro{0%{transform:rotateX(10deg) rotateY(0)}35%{transform:rotateX(10deg) rotateY(0)}65%{transform:rotateX(10deg) rotateY(360deg)}100%{transform:rotateX(10deg) rotateY(360deg)}}
 @keyframes trSheen{0%,55%{transform:translateX(-130%)}80%,100%{transform:translateX(130%)}}
-@media (max-width:620px){.tr-marca{height:290px}.tr-logo-wrap{width:210px;height:210px}}
-@media (prefers-reduced-motion:reduce){.tr-logo3d,.tr-logo-wrap,.tr-logo3d .placa::after{animation:none!important}}
+@media (max-width:620px){.tr-marca{height:200px}.tr-cartel-wrap{width:270px;height:74px}.tr-cartel .cara span{font-size:39px}.tr-marca .tr-glow{bottom:28px;width:240px;margin-left:-120px}}
+@media (prefers-reduced-motion:reduce){.tr-cartel,.tr-cartel-wrap,.tr-cartel .cara::after{animation:none!important}}
 `;
 
-export const Marca3D = ({ version = "", alto }) => {
-  const [hayLogo, setHayLogo] = useState(true);
-  useEffect(() => setHayLogo(true), [version]);
-  // Espesor: placas apiladas detrás del logo, que se ven al girar.
-  const canto = [...Array(10)].map((_, i) => <div key={i} className="canto" style={{ transform: `translateZ(${8 - i}px)` }} />);
+export const Marca3D = ({ alto }) => {
+  // Espesor: capas apiladas entre el frente y el dorso; se ven cuando el cartel gira de costado.
+  const canto = [...Array(GROSOR - 1)].map((_, i) => <div key={i} className="canto" style={{ transform: `translateZ(${GROSOR / 2 - 1 - i}px)` }} />);
   return (
-    <div className="tr-marca" style={alto ? { height: alto } : undefined} aria-label="Tecno Riv">
+    <div className="tr-marca" style={alto ? { height: alto } : undefined} aria-label="Tecno">
       <style>{CSS_MARCA}</style>
       <div className="tr-glow" />
-      <div className="tr-logo-wrap">
-        <div className="tr-logo3d">
+      <div className="tr-cartel-wrap">
+        <div className="tr-cartel">
           {canto}
-          <div className="placa">{hayLogo ? <img src={`/marca/logo?v=${version}`} alt="Tecno Riv" onError={() => setHayLogo(false)} /> : <b>TR</b>}</div>
+          <div className="cara frente"><span>TECNO</span></div>
+          <div className="cara dorso"><span>TECNO</span></div>
         </div>
       </div>
     </div>

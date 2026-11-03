@@ -195,7 +195,7 @@ const Grilla = ({ piezas, onOpen }) => (
 );
 
 // ─── INICIO ────────────────────────────────────────────────────────────────────
-const Inicio = ({ datos, onOpen, irACrear, irA, onLogo }) => {
+const Inicio = ({ datos, onOpen, irACrear, irA }) => {
   const { piezas, hoy, instagram, promo } = datos;
   const [plan, setPlan] = useState(() => { try { return JSON.parse(localStorage.getItem("planContenido") || "null"); } catch { return null; } });
   const [armando, setArmando] = useState(false);
@@ -217,7 +217,7 @@ const Inicio = ({ datos, onOpen, irACrear, irA, onLogo }) => {
 
   return (
     <div>
-      <Hero publicadas={publicadas.length} onCrear={() => irACrear({})} logo={datos.logo} onLogo={onLogo} />
+      <Hero publicadas={publicadas.length} onCrear={() => irACrear({})} />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "12px", marginBottom: "20px" }}>
         <StatCard label="Publicado (7 días)" value={publicadas.length} sub="Meta: 5 por semana" accent={publicadas.length >= 5 ? "#10b981" : "#fff"} />
         <StatCard label="Programado" value={programadas.length} sub={programadas[0] ? `Próximo: ${fechaLarga(diaDe(programadas[0].programado_para))}` : "Nada en agenda"} accent="#f59e0b" />
@@ -651,7 +651,7 @@ export default function App() {
 
       <div style={{ flex: 1, maxWidth: "900px", margin: "0 auto", width: "100%", padding: "24px 16px 120px", boxSizing: "border-box" }}>
         {datos.faltaTabla && <div style={{ ...alertaSt("#f59e0b"), color: "#fcd34d", fontSize: "13px", marginBottom: "16px" }}>{datos.faltaTabla}</div>}
-        {tab === "inicio" && <Inicio datos={datos} onOpen={setAbierta} irACrear={irACrear} irA={irA} onLogo={(v) => setDatos(d => ({ ...d, logo: v }))} />}
+        {tab === "inicio" && <Inicio datos={datos} onOpen={setAbierta} irACrear={irACrear} irA={irA} />}
         {tab === "crear" && <Crear key={claveCrear} datos={datos} inicial={inicialCrear} onCreada={async (id) => { await cargar(); setAbierta(id); irA("biblioteca"); }} />}
         {tab === "biblioteca" && <Biblioteca piezas={datos.piezas} onOpen={setAbierta} />}
         {tab === "calendario" && <Calendario datos={datos} onOpen={setAbierta} irACrear={irACrear} />}
@@ -715,54 +715,16 @@ const Shell = ({ children }) => (
   </div>
 );
 
-// Achica el logo en el celu antes de subirlo (máx 600 px, PNG con transparencia). SVG va tal cual.
-const leerLogo = (archivo) => new Promise((ok, mal) => {
-  const r = new FileReader();
-  r.onerror = () => mal(new Error("No se pudo leer el archivo"));
-  r.onload = () => {
-    if (archivo.type === "image/svg+xml") return ok(r.result);
-    const img = new Image();
-    img.onerror = () => mal(new Error("Esa imagen no se pudo abrir. Probá con PNG o JPG."));
-    img.onload = () => {
-      const k = Math.min(1, 600 / Math.max(img.width, img.height));
-      const c = document.createElement("canvas");
-      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
-      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-      ok(c.toDataURL("image/png"));
-    };
-    img.src = r.result;
-  };
-  r.readAsDataURL(archivo);
-});
-
-const Hero = ({ publicadas, onCrear, logo, onLogo }) => {
-  const [subiendo, setSubiendo] = useState(false);
-  const [error, setError] = useState("");
-  const subir = async (e) => {
-    const f = e.target.files?.[0]; e.target.value = "";
-    if (!f) return;
-    setSubiendo(true); setError("");
-    try { const r = await api("/logo", "PUT", { imagen: await leerLogo(f) }); onLogo(r.logo); }
-    catch (er) { setError(er.message); }
-    finally { setSubiendo(false); }
-  };
+const Hero = ({ publicadas, onCrear }) => {
   return (
     <div className="tr-hero" style={card}>
       <div style={{ position: "relative", zIndex: 1 }}>
         <div style={{ color: "#1EB6FF", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: "12px" }}>Estudio de contenido</div>
         <h1>Creá. Programá.<br /><span>Publicá.</span></h1>
         <p style={{ color: "#8b93a7", fontSize: "14px", lineHeight: 1.55, margin: "14px 0 18px", maxWidth: "320px" }}>Carruseles, historias y Marketplace con la identidad de Tecno Riv. {publicadas ? `${publicadas} publicada${publicadas > 1 ? "s" : ""} esta semana.` : "Arrancá la semana con tu primer post."}</p>
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
-          <Btn onClick={onCrear} style={{ padding: "12px 20px" }}><Icon name="plus" size={16} /> Nueva pieza</Btn>
-          <label style={{ ...chipSt(false), padding: "10px 14px", fontSize: "13px", opacity: subiendo ? 0.6 : 1 }}>
-            <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={subir} disabled={subiendo} style={{ display: "none" }} />
-            {subiendo ? "Subiendo…" : logo ? "Cambiar logo" : "Subir mi logo"}
-          </label>
-        </div>
-        {error && <div style={{ color: "#fca5a5", fontSize: "12px", marginTop: "8px" }}>{error}</div>}
-        {!logo && <div style={{ color: "#6b7280", fontSize: "12px", marginTop: "8px" }}>Ideal: PNG con fondo transparente.</div>}
+        <Btn onClick={onCrear} style={{ padding: "12px 20px" }}><Icon name="plus" size={16} /> Nueva pieza</Btn>
       </div>
-      <Marca3D version={logo || ""} />
+      <Marca3D />
     </div>
   );
 };

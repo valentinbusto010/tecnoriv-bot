@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { Fondo, Escena3D, card, fieldSt, chipSt, btnFondo } from "../compartido/tema.jsx";
 
 // Sistema de gestión TecnoRiv conectado al bot.
 // Los datos viven en Supabase y pasan por el servidor del bot (/api/gestion),
@@ -104,9 +105,7 @@ const Icon = ({ name, size = 18 }) => {
 };
 
 // ─── UI ────────────────────────────────────────────────────────────────────────
-const card = { background: "#0f1117", border: "1px solid #1e2232", borderRadius: "14px" };
 const labelSt = { display: "block", color: "#9ca3af", fontSize: "12px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "6px" };
-const fieldSt = { width: "100%", background: "#161b27", border: "1px solid #1e2232", borderRadius: "8px", color: "#fff", padding: "10px 14px", fontSize: "16px", outline: "none", boxSizing: "border-box", fontFamily: "inherit" };
 const iconBtn = { background: "none", border: "none", color: "#6b7280", cursor: "pointer", padding: "4px", display: "flex" };
 const statsRow = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "12px", marginBottom: "20px" };
 const sectionLabel = { color: "#6b7280", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" };
@@ -139,9 +138,9 @@ const Select = ({ label, children, ...props }) => (
 
 const Btn = ({ children, onClick, variant = "primary", disabled, style = {} }) => (
   <button onClick={onClick} disabled={disabled} style={{
-    background: variant === "primary" ? "#0066FF" : variant === "danger" ? "#ef444422" : "#1e2232",
-    color: variant === "danger" ? "#ef4444" : "#fff", border: variant === "danger" ? "1px solid #ef444444" : "none",
-    borderRadius: "8px", padding: "10px 18px", fontSize: "14px", fontWeight: 600, cursor: disabled ? "default" : "pointer",
+    ...btnFondo(variant),
+    color: variant === "danger" ? "#ef4444" : "#fff", border: variant === "danger" ? "1px solid #ef444444" : variant === "ghost" ? "1px solid rgba(255,255,255,0.08)" : "none",
+    borderRadius: "10px", padding: "10px 18px", fontSize: "14px", fontWeight: 600, cursor: disabled ? "default" : "pointer",
     display: "inline-flex", alignItems: "center", gap: "6px", fontFamily: "inherit", opacity: disabled ? 0.5 : 1, ...style
   }}>{children}</button>
 );
@@ -164,8 +163,8 @@ const StatCard = ({ label, value, sub, accent, icon }) => (
 const Header = ({ kicker, title, action }) => (
   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
     <div>
-      <div style={{ color: "#6b7280", fontSize: "13px", marginBottom: "4px" }}>{kicker}</div>
-      <h2 style={{ margin: 0, fontSize: "26px", fontWeight: 800, color: "#fff" }}>{title}</h2>
+      <div style={{ color: "#1EB6FF", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: "6px" }}>{kicker}</div>
+      <h2 style={{ margin: 0, fontSize: "28px", fontWeight: 700, color: "#fff", letterSpacing: "-0.03em" }}>{title}</h2>
     </div>
     {action}
   </div>
@@ -179,7 +178,7 @@ const Botones = ({ onCancel, onOk, okLabel, disabled }) => (
 );
 
 const Fila = ({ children, last }) => (
-  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 18px", borderBottom: last ? "none" : "1px solid #1e2232", flexWrap: "wrap", gap: "10px" }}>{children}</div>
+  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 18px", borderBottom: last ? "none" : "1px solid rgba(255,255,255,0.07)", flexWrap: "wrap", gap: "10px" }}>{children}</div>
 );
 
 // ─── DASHBOARD ─────────────────────────────────────────────────────────────────
@@ -197,7 +196,14 @@ const Dashboard = ({ pedidos, productos, gastos, clientes, ajustes, irA }) => {
 
   return (
     <div>
-      <Header kicker="Resumen general · TecnoRiv" title="Dashboard" />
+      <div className="tr-hero" style={card}>
+        <div style={{ position: "relative", zIndex: 1 }}>
+          <div style={{ color: "#1EB6FF", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: "12px" }}>Resumen · {nombreMes()}</div>
+          <h1>Tu negocio,<br /><span>en vivo.</span></h1>
+          <p style={{ color: "#8b93a7", fontSize: "14px", lineHeight: 1.55, margin: "14px 0 0", maxWidth: "320px" }}>Vendiste <b style={{ color: "#fff" }}>{fmt(m.ventas)}</b> este mes en {delMes.length} pedido{delMes.length === 1 ? "" : "s"}{delBot ? `, ${delBot} cerrado${delBot === 1 ? "" : "s"} por el bot` : ""}.</p>
+        </div>
+        <Escena3D etiquetas={["$", "TR", "WA"]} imagenes={(() => { const f = productos.filter(p => p.activo !== false && p.imagen_url && p.stock > 0).sort((a, b) => b.stock - a.stock).map(p => p.imagen_url); return [f[1], f[0], f[2]]; })()} />
+      </div>
       <div style={statsRow}>
         <StatCard label="Ventas del mes" value={fmt(m.ventas)} sub={`${nombreMes()} · ${delMes.length} pedidos`} accent="#10b981" />
         <StatCard label="Ganancia real" value={fmt(m.ganancia)} sub={m.sinCosto ? `⚠️ ${m.sinCosto} venta${m.sinCosto > 1 ? "s" : ""} sin costo` : `Margen ${pctDe(m.ganancia, m.ventas)} de lo vendido`} accent={m.ganancia >= 0 ? "#0066FF" : "#ef4444"} icon="finanzas" />
@@ -244,7 +250,7 @@ const Dashboard = ({ pedidos, productos, gastos, clientes, ajustes, irA }) => {
       <div style={{ ...card, padding: "20px" }}>
         <h3 style={{ margin: "0 0 12px", fontSize: "14px", fontWeight: 700, color: "#fff", textTransform: "uppercase", letterSpacing: "0.05em" }}>Últimos pedidos</h3>
         {pedidos.length === 0 ? <p style={{ color: "#6b7280", fontSize: "14px" }}>Sin pedidos aún.</p> : pedidos.slice(0, 6).map(p => (
-          <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid #1e2232", gap: "10px" }}>
+          <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,0.07)", gap: "10px" }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ color: "#fff", fontSize: "14px", fontWeight: 600 }}>{p.origen === "bot" && "🤖 "}{p.cliente || fmtTel(p.telefono)}</div>
               <div style={{ color: "#6b7280", fontSize: "12px" }}>{p.cantidad > 1 ? `${p.cantidad}x ` : ""}{p.producto} · {fmtDate(p.fecha)}</div>
@@ -287,7 +293,7 @@ const Pedidos = ({ pedidos, productos, accion, ajustes }) => {
       <Header kicker="Gestión de pedidos" title="Pedidos" action={<Btn onClick={() => setModal(true)}><Icon name="plus" size={16} /> Nuevo pedido</Btn>} />
       <div style={{ display: "flex", gap: "8px", marginBottom: "16px", flexWrap: "wrap" }}>
         {["todos", "bot", ...ESTADO_LABELS].map(e => (
-          <button key={e} onClick={() => setFiltro(e)} style={{ background: filtro === e ? "#0066FF" : "#1e2232", color: filtro === e ? "#fff" : "#9ca3af", border: "none", borderRadius: "100px", padding: "6px 14px", fontSize: "12px", fontWeight: 600, cursor: "pointer", textTransform: "capitalize" }}>{e === "bot" ? "🤖 del bot" : e}</button>
+          <button key={e} onClick={() => setFiltro(e)} style={{ background: filtro === e ? "#0066FF" : "rgba(255,255,255,0.07)", color: filtro === e ? "#fff" : "#9ca3af", border: "none", borderRadius: "100px", padding: "6px 14px", fontSize: "12px", fontWeight: 600, cursor: "pointer", textTransform: "capitalize" }}>{e === "bot" ? "🤖 del bot" : e}</button>
         ))}
       </div>
 
@@ -348,7 +354,7 @@ const AyudaPrecio = ({ precio, costo, ajustes, onUsar }) => {
   const sug = precioSugerido(costo, ajustes);
   if (!m && !sug) return null;
   return (
-    <div style={{ background: "#161b27", borderRadius: "8px", padding: "10px 12px", marginBottom: "14px", fontSize: "13px", color: "#9ca3af", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+    <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: "8px", padding: "10px 12px", marginBottom: "14px", fontSize: "13px", color: "#9ca3af", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
       <span>{m ? <>Ganás <b style={{ color: colorMargen(m.pct, ajustes) }}>{fmt(m.unit)} ({m.pct}%)</b> por unidad</> : "Cargá el precio"}</span>
       {sug && Number(precio) !== sug && <button onClick={() => onUsar(sug)} style={{ ...chipSt(false), background: "#0066FF22", color: "#60a5fa" }}>Usar {fmt(sug)} ({ajustes.margen_objetivo}%)</button>}
     </div>
@@ -510,7 +516,7 @@ const Stock = ({ productos, ajustes, accion, filtroInicial, faltaMargen }) => {
               const sug = precioSugerido(f.costo, ajustes);
               const set = (k, v) => setLote({ ...lote, [p.id]: { ...f, [k]: v } });
               return (
-                <div key={p.id} style={{ display: "grid", gridTemplateColumns: "1fr 92px 92px", gap: "8px", alignItems: "center", padding: "6px 0", borderBottom: "1px solid #1e2232" }}>
+                <div key={p.id} style={{ display: "grid", gridTemplateColumns: "1fr 92px 92px", gap: "8px", alignItems: "center", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ color: "#fff", fontSize: "13px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.nombre}</div>
                     <div style={{ fontSize: "11px", color: "#6b7280" }}>
@@ -557,8 +563,7 @@ const Stock = ({ productos, ajustes, accion, filtroInicial, faltaMargen }) => {
     </div>
   );
 };
-const stockBtn = { width: 30, height: 30, background: "#1e2232", border: "none", borderRadius: "6px", color: "#fff", cursor: "pointer", fontSize: "16px", display: "flex", alignItems: "center", justifyContent: "center" };
-const chipSt = (activo) => ({ background: activo ? "#0066FF" : "#1e2232", color: activo ? "#fff" : "#9ca3af", border: "none", borderRadius: "100px", padding: "6px 14px", fontSize: "12px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" });
+const stockBtn = { width: 30, height: 30, background: "rgba(255,255,255,0.07)", border: "none", borderRadius: "6px", color: "#fff", cursor: "pointer", fontSize: "16px", display: "flex", alignItems: "center", justifyContent: "center" };
 
 // ─── MARKETPLACE ───────────────────────────────────────────────────────────────
 // Publicaciones listas para copiar y pegar en Facebook Marketplace (imagen + título + descripción).
@@ -620,7 +625,7 @@ const Marketplace = ({ productos, inicial }) => {
           {pubs.map(pub => {
             const cambio = precioActual(pub) !== undefined && Number(precioActual(pub)) !== Number(pub.precio);
             return (
-              <div key={pub.id} style={{ borderTop: "1px solid #1e2232", padding: "14px 0" }}>
+              <div key={pub.id} style={{ borderTop: "1px solid rgba(255,255,255,0.07)", padding: "14px 0" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", marginBottom: "8px", flexWrap: "wrap" }}>
                   <span style={{ color: "#fff", fontWeight: 700, fontSize: "14px" }}>{pub.producto} {cambio && <Badge color="#f59e0b">EL PRECIO CAMBIÓ · REGENERÁ</Badge>}</span>
                   <span style={{ display: "flex", gap: "4px" }}>
@@ -635,7 +640,7 @@ const Marketplace = ({ productos, inicial }) => {
                   <button onClick={() => copiar("d" + pub.id, pub.descripcion)} style={chipSt(false)}>{copiado === "d" + pub.id ? "✓ Copiada" : "Copiar descripción"}</button>
                 </div>
                 <div style={{ color: "#fff", fontSize: "14px", fontWeight: 600, marginBottom: "4px" }}>{pub.titulo}</div>
-                <div style={{ color: "#9ca3af", fontSize: "13px", whiteSpace: "pre-wrap", background: "#161b27", borderRadius: "8px", padding: "10px", maxHeight: "140px", overflowY: "auto" }}>{pub.descripcion}</div>
+                <div style={{ color: "#9ca3af", fontSize: "13px", whiteSpace: "pre-wrap", background: "rgba(255,255,255,0.04)", borderRadius: "8px", padding: "10px", maxHeight: "140px", overflowY: "auto" }}>{pub.descripcion}</div>
               </div>
             );
           })}
@@ -767,7 +772,7 @@ const Instagram = ({ ajustes }) => {
               <span style={sectionLabel}>Caption del carrusel</span>
               <button onClick={copiar} style={chipSt(true)}>{copiado ? "✓ Copiado" : "Copiar caption"}</button>
             </div>
-            <div style={{ color: "#d1d5db", fontSize: "13px", whiteSpace: "pre-wrap", background: "#161b27", borderRadius: "8px", padding: "12px" }}>{cap.texto}</div>
+            <div style={{ color: "#d1d5db", fontSize: "13px", whiteSpace: "pre-wrap", background: "rgba(255,255,255,0.04)", borderRadius: "8px", padding: "12px" }}>{cap.texto}</div>
           </>}
         </div>
       )}
@@ -806,7 +811,7 @@ const Finanzas = ({ pedidos, gastos, accion }) => {
   };
 
   const linea = (label, valor, color, signo = "") => (
-    <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #1e2232", fontSize: "14px" }}>
+    <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.07)", fontSize: "14px" }}>
       <span style={{ color: "#9ca3af" }}>{label}</span><span style={{ color, fontWeight: 700, whiteSpace: "nowrap" }}>{signo}{fmt(valor)}</span>
     </div>
   );
@@ -837,7 +842,7 @@ const Finanzas = ({ pedidos, gastos, accion }) => {
         <div style={{ ...card, padding: "18px", marginBottom: "20px" }}>
           <div style={{ ...sectionLabel, marginBottom: "10px" }}>Qué te dejó más plata en {mesCorto()}</div>
           {porProducto.slice(0, 8).map(p => (
-            <div key={p.nombre} style={{ display: "flex", justifyContent: "space-between", gap: "10px", padding: "7px 0", borderBottom: "1px solid #1e2232", fontSize: "13px" }}>
+            <div key={p.nombre} style={{ display: "flex", justifyContent: "space-between", gap: "10px", padding: "7px 0", borderBottom: "1px solid rgba(255,255,255,0.07)", fontSize: "13px" }}>
               <span style={{ color: "#d1d5db" }}>{p.nombre} <span style={{ color: "#6b7280" }}>· {p.unidades} ud.</span></span>
               <span style={{ color: "#10b981", fontWeight: 700, whiteSpace: "nowrap" }}>{fmt(p.ganancia)} <span style={{ color: "#6b7280", fontWeight: 400 }}>({pctDe(p.ganancia, p.ventas)})</span></span>
             </div>
@@ -856,7 +861,7 @@ const Finanzas = ({ pedidos, gastos, accion }) => {
                   <span style={{ color: "#9ca3af", fontSize: "13px" }}>{cat}{cat === "Stock" ? " (compras)" : ""}</span>
                   <span style={{ color: "#fff", fontSize: "13px", fontWeight: 700 }}>{fmt(total)} <span style={{ color: "#6b7280" }}>({pct}%)</span></span>
                 </div>
-                <div style={{ height: "4px", background: "#1e2232", borderRadius: "100px" }}>
+                <div style={{ height: "4px", background: "rgba(255,255,255,0.07)", borderRadius: "100px" }}>
                   <div style={{ height: "100%", width: `${pct}%`, background: "#0066FF", borderRadius: "100px" }} />
                 </div>
               </div>
@@ -866,7 +871,7 @@ const Finanzas = ({ pedidos, gastos, accion }) => {
       )}
 
       <div style={{ ...card, overflow: "hidden" }}>
-        <div style={{ padding: "14px 18px", borderBottom: "1px solid #1e2232" }}>
+        <div style={{ padding: "14px 18px", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
           <span style={sectionLabel}>Gastos registrados</span>
           <div style={{ color: "#6b7280", fontSize: "12px", marginTop: "4px" }}>Tip: desde tu WhatsApp mandale al bot "gasto 15000 marketing Meta Ads"</div>
         </div>
@@ -957,7 +962,7 @@ const Clientes = ({ clientes, pedidos, accion }) => {
 
       <div style={{ ...card, overflow: "hidden" }}>
         {lista.length === 0 ? <p style={{ color: "#6b7280", fontSize: "14px", padding: "20px", margin: 0 }}>Sin clientes todavía. Aparecen solos cuando alguien le escribe al bot.</p> : lista.map((c, i) => (
-          <div key={c.id} style={{ borderBottom: i === lista.length - 1 ? "none" : "1px solid #1e2232" }}>
+          <div key={c.id} style={{ borderBottom: i === lista.length - 1 ? "none" : "1px solid rgba(255,255,255,0.07)" }}>
             <div onClick={() => setAbierto(abierto === c.id ? null : c.id)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 18px", gap: "10px", cursor: "pointer", flexWrap: "wrap" }}>
               <div style={{ flex: 1, minWidth: "160px" }}>
                 <div style={{ color: "#fff", fontWeight: 700, fontSize: "14px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
@@ -979,7 +984,7 @@ const Clientes = ({ clientes, pedidos, accion }) => {
               <div style={{ padding: "0 18px 14px", color: "#9ca3af", fontSize: "13px" }}>
                 {c.notas && <div style={{ marginBottom: "8px", color: "#d1d5db" }}>📝 {c.notas}</div>}
                 {c.pedidos.length === 0 ? <div>Todavía no compró.</div> : c.pedidos.map(p => (
-                  <div key={p.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderTop: "1px solid #1e2232", gap: "10px" }}>
+                  <div key={p.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderTop: "1px solid rgba(255,255,255,0.07)", gap: "10px" }}>
                     <span>{fmtDate(p.fecha)} · {p.cantidad > 1 ? `${p.cantidad}x ` : ""}{p.producto}</span>
                     <span style={{ color: "#fff", whiteSpace: "nowrap" }}>{fmt(p.monto)} <Badge color={ESTADO_COLORS[p.estado]}>{p.estado}</Badge></span>
                   </div>
@@ -1013,9 +1018,9 @@ const Login = ({ onOk, error }) => {
   const [clave, setClave] = useState("");
   return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
-      <div style={{ ...card, padding: "28px", width: "100%", maxWidth: "380px" }}>
-        <div style={{ width: "36px", height: "36px", background: "#0066FF", borderRadius: "9px", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, marginBottom: "16px" }}>TR</div>
-        <h2 style={{ margin: "0 0 6px", fontSize: "22px" }}>Gestión TecnoRiv</h2>
+      <div style={{ ...card, padding: "8px 28px 28px", width: "100%", maxWidth: "400px", boxSizing: "border-box" }}>
+        <Escena3D alto={200} etiquetas={["$", "TR", "WA"]} />
+        <h2 style={{ margin: "0 0 6px", fontSize: "26px", fontWeight: 700, letterSpacing: "-0.03em" }}>Gestión <span style={{ color: "#1EB6FF" }}>Tecno Riv</span></h2>
         <p style={{ color: "#6b7280", fontSize: "14px", margin: "0 0 20px" }}>Usá la misma contraseña del panel (PANEL_PASSWORD).</p>
         <form onSubmit={e => { e.preventDefault(); setClaveLS(clave); onOk(); }}>
           <Input label="Contraseña" type="password" value={clave} onChange={e => setClave(e.target.value)} autoFocus />
@@ -1081,20 +1086,21 @@ export default function App() {
 
   return (
     <Shell>
-      <div style={{ background: "#0d1120", borderBottom: "1px solid #1e2232", padding: "0 16px", height: "56px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 100 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <div style={{ width: "28px", height: "28px", background: "#0066FF", borderRadius: "7px", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: "12px" }}>TR</div>
-          <span style={{ fontWeight: 800, fontSize: "15px" }}>TecnoRiv</span>
-          <span style={{ color: "#10b981", fontSize: "11px", display: "flex", alignItems: "center", gap: "4px" }}>● en vivo</span>
+      <div className="tr-glass-bar" style={{ borderBottom: "1px solid", padding: "0 16px", height: "58px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 100 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
+          <div style={{ width: "30px", height: "30px", background: "linear-gradient(135deg,#1a7bff,#0047c2)", borderRadius: "9px", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: "12px", boxShadow: "0 6px 16px -4px rgba(0,102,255,0.7), inset 0 1px 0 rgba(255,255,255,0.25)" }}>TR</div>
+          <span style={{ fontWeight: 700, fontSize: "15px", letterSpacing: "-0.02em" }}>Gestión</span>
+          <span className="tr-hide-sm" style={{ color: "#10b981", fontSize: "11px", whiteSpace: "nowrap" }}>● en vivo</span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          {pendientesCount > 0 && <div style={{ background: "#f59e0b22", color: "#f59e0b", fontSize: "11px", fontWeight: 700, padding: "4px 10px", borderRadius: "100px", border: "1px solid #f59e0b44" }}>{pendientesCount} pendiente{pendientesCount > 1 ? "s" : ""}</div>}
-          {instalar.visible && <button onClick={instalar.abrir} style={{ background: "#0066FF22", color: "#60a5fa", border: "1px solid #0066FF44", borderRadius: "100px", padding: "4px 10px", fontSize: "11px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: "4px" }}><Icon name="download" size={12} /> Instalar app</button>}
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+          {pendientesCount > 0 && <div className="tr-hide-sm" style={{ background: "#f59e0b22", color: "#f59e0b", fontSize: "11px", fontWeight: 700, padding: "4px 10px", borderRadius: "100px", border: "1px solid #f59e0b44" }}>{pendientesCount} pendiente{pendientesCount > 1 ? "s" : ""}</div>}
+          {instalar.visible && <button onClick={instalar.abrir} style={{ background: "#0066FF22", color: "#60a5fa", border: "1px solid #0066FF44", borderRadius: "100px", padding: "4px 10px", fontSize: "11px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: "4px" }}><Icon name="download" size={12} /> App</button>}
+          <a href="/contenido" style={{ color: "#9ca3af", fontSize: "12px", fontWeight: 600, textDecoration: "none", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "100px", padding: "4px 10px", whiteSpace: "nowrap" }}>Contenido</a>
           <button onClick={cargar} title="Actualizar" style={iconBtn}><Icon name="refresh" size={16} /></button>
         </div>
       </div>
 
-      <div style={{ flex: 1, maxWidth: "900px", margin: "0 auto", width: "100%", padding: "24px 16px 100px", boxSizing: "border-box" }}>
+      <div style={{ flex: 1, maxWidth: "900px", margin: "0 auto", width: "100%", padding: "24px 16px 120px", boxSizing: "border-box" }}>
         {tab === "dashboard" && <Dashboard pedidos={pedidos} productos={productos} gastos={gastos} clientes={clientes} ajustes={ajustes} irA={irA} />}
         {tab === "pedidos" && <Pedidos pedidos={pedidos} productos={productos.filter(p => p.activo !== false)} accion={accion} ajustes={ajustes} />}
         {tab === "clientes" && <Clientes clientes={clientes} pedidos={pedidos} accion={accion} />}
@@ -1113,11 +1119,11 @@ export default function App() {
         </Modal>
       )}
 
-      {aviso && <div style={{ position: "fixed", bottom: "84px", left: "16px", right: "16px", maxWidth: "480px", margin: "0 auto", background: "#ef4444", color: "#fff", padding: "12px 16px", borderRadius: "10px", fontSize: "14px", zIndex: 2000 }}>{aviso.texto}</div>}
+      {aviso && <div style={{ position: "fixed", bottom: "100px", left: "16px", right: "16px", maxWidth: "480px", margin: "0 auto", background: "#ef4444", color: "#fff", padding: "12px 16px", borderRadius: "10px", fontSize: "14px", zIndex: 2000 }}>{aviso.texto}</div>}
 
-      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#0d1120", borderTop: "1px solid #1e2232", display: "flex", justifyContent: "space-around", padding: "8px 0 calc(12px + env(safe-area-inset-bottom))", zIndex: 100 }}>
+      <div className="tr-dock">
         {tabs.map(t => (
-          <button key={t.id} onClick={() => irA(t.id)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "4px", color: tab === t.id ? "#0066FF" : "#6b7280", fontFamily: "inherit", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", padding: "4px 8px", position: "relative" }}>
+          <button key={t.id} className={tab === t.id ? "on" : ""} onClick={() => irA(t.id)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "4px", color: tab === t.id ? "#0066FF" : "#6b7280", fontFamily: "inherit", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", padding: "6px 2px", position: "relative" }}>
             <Icon name={t.icon} size={20} />
             {t.label}
             {t.id === "pedidos" && pendientesCount > 0 && <span style={{ position: "absolute", top: 0, right: 4, minWidth: "16px", height: "16px", background: "#f59e0b", borderRadius: "100px", fontSize: "9px", fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", color: "#000" }}>{pendientesCount}</span>}
@@ -1153,5 +1159,8 @@ function useInstalar() {
 }
 
 const Shell = ({ children }) => (
-  <div style={{ minHeight: "100vh", background: "#080b12", fontFamily: "'Space Grotesk', 'Inter', system-ui, sans-serif", color: "#fff", display: "flex", flexDirection: "column" }}>{children}</div>
+  <div style={{ minHeight: "100vh", background: "#05070d", fontFamily: "'Space Grotesk', 'Inter', system-ui, sans-serif", color: "#fff", display: "flex", flexDirection: "column", position: "relative", isolation: "isolate" }}>
+    <Fondo />
+    {children}
+  </div>
 );

@@ -1,5 +1,5 @@
 // API del estudio de contenido (/contenido): crear, guardar, programar y publicar piezas.
-// Instagram se publica solo si están IG_USER_ID e IG_TOKEN; si no, queda todo listo para subir a mano
+// Instagram se publica solo si está IG_TOKEN (la cuenta se encuentra sola); si no, queda todo listo para subir a mano
 // y el día programado te llega un recordatorio por WhatsApp. Marketplace siempre es manual
 // (Facebook no permite publicar ahí con programas).
 const express = require('express');
@@ -11,9 +11,39 @@ const FORMATOS = ['carrusel', 'post', 'historias', 'marketplace'];
 const ESTADOS = ['borrador', 'programado', 'publicado'];
 const GRAPH = 'https://graph.facebook.com/v21.0';
 
-const igListo = () => Boolean(process.env.IG_USER_ID && process.env.IG_TOKEN);
-let ultimaUrl = process.env.PUBLIC_URL || '';
-const urlPublica = () => (process.env.PUBLIC_URL || ultimaUrl).replace(/\/$/, '');
+let ultimaUrl = '';
+// PUBLIC_URL es opcional: Render ya define RENDER_EXTERNAL_URL con la dirección del servidor.
+const urlPublica = () => (process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || ultimaUrl).replace(/\/$/, '');
+
+// Cuenta de Instagram a la que se publica. Con IG_USER_ID la usa directo; si no, la busca entre las
+// páginas de Facebook del token (prefiere la que se llama "Tecno…"). Se guarda 1 hora.
+let cacheIG = { t: 0, cuenta: null, error: null };
+async function cuentaIG() {
+  if (!process.env.IG_TOKEN) return null;
+  if (Date.now() - cacheIG.t < 60 * 60 * 1000 && (cacheIG.cuenta || cacheIG.error)) {
+    if (cacheIG.error) throw new Error(cacheIG.error);
+    return cacheIG.cuenta;
+  }
+  try {
+    let cuenta;
+    if (process.env.IG_USER_ID) {
+      const r = await graph('get', process.env.IG_USER_ID, { fields: 'id,username' });
+      cuenta = { id: r.id, username: r.username };
+    } else {
+      const { data = [] } = await graph('get', 'me/accounts', { fields: 'name,instagram_business_account{id,username}', limit: 50 });
+      const conIG = data.filter((p) => p.instagram_business_account);
+      const elegida = conIG.find((p) => /tecno/i.test(p.name) || /tecno/i.test(p.instagram_business_account.username || '')) || conIG[0];
+      if (!elegida) throw new Error('El token no ve ninguna página de Facebook con un Instagram profesional vinculado. Vinculá @tecno_riv a la página Tecno Riv y asigná la página al token.');
+      cuenta = { id: elegida.instagram_business_account.id, username: elegida.instagram_business_account.username };
+    }
+    cacheIG = { t: Date.now(), cuenta, error: null };
+    return cuenta;
+  } catch (e) {
+    cacheIG = { t: Date.now(), cuenta: null, error: e.message };
+    throw e;
+  }
+}
+const igListo = async () => Boolean(await cuentaIG().catch(() => null));
 
 const avisoTabla = (e) => (/schema cache|does not exist/i.test(e.message) ? 'Falta correr supabase-contenido.sql en Supabase' : e.message);
 
@@ -62,13 +92,14 @@ async function esperarContenedor(id) {
 }
 
 async function publicarEnInstagram(pieza) {
-  if (!igListo()) throw new Error('Instagram no está conectado: faltan IG_USER_ID e IG_TOKEN en Render.');
+  if (!process.env.IG_TOKEN) throw new Error('Instagram no está conectado: falta IG_TOKEN en Render.');
+  const cuenta = await cuentaIG();
   const base = urlPublica();
   if (!/^https:\/\//.test(base)) throw new Error('Falta PUBLIC_URL en Render (ej: https://tecnoriv-bot.onrender.com). Instagram necesita bajar las imágenes desde ahí.');
   const { data: imgs, error } = await supabase.from('pieza_imagenes').select('clave, orden').eq('pieza_id', pieza.id).order('orden');
   if (error || !imgs?.length) throw new Error('La pieza no tiene imágenes');
   const url = (i) => `${base}/contenido/img/${i.clave}.jpg`;
-  const yo = process.env.IG_USER_ID;
+  const yo = cuenta.id;
   let mediaId;
 
   if (pieza.formato === 'historias') {
@@ -111,7 +142,7 @@ function iniciarProgramador(avisarDueno) {
       .limit(10);
     if (error) return;
     for (const p of data) {
-      const automatica = igListo() && p.formato !== 'marketplace';
+      const automatica = p.formato !== 'marketplace' && (await igListo());
       if (automatica) {
         try {
           await publicarEnInstagram(p);
@@ -136,7 +167,7 @@ function iniciarProgramador(avisarDueno) {
 function router(chequearClave, explicarError = (e) => e.message) {
   const r = express.Router();
   r.use((req, res, next) => {
-    if (!process.env.PUBLIC_URL && req.get('host') && !/localhost|127\.0\.0\.1/.test(req.get('host'))) ultimaUrl = `https://${req.get('host')}`;
+    if (req.get('host') && !/localhost|127\.0\.0\.1/.test(req.get('host'))) ultimaUrl = `https://${req.get('host')}`;
     next();
   });
   r.use(chequearClave);
@@ -147,11 +178,12 @@ function router(chequearClave, explicarError = (e) => e.message) {
   };
 
   r.get('/estado', async (req, res) => {
-    const [productos, piezas, promo, logo] = await Promise.all([
+    const [productos, piezas, promo, logo, ig] = await Promise.all([
       supabase.from('productos').select('id, nombre, categoria, precio, stock, imagen_url, activo').order('nombre'),
       supabase.from('piezas').select('id, formato, plantilla, titulo, estado, programado_para, publicado_at, ig_permalink, error, miniatura, producto_ids, created_at').order('created_at', { ascending: false }).limit(300),
       promoVigente(),
       supabase.from('ajustes').select('valor->v').eq('clave', 'logo_marca').maybeSingle(),
+      cuentaIG().then((c) => ({ cuenta: c }), (e) => ({ error: e.message })),
     ]);
     if (productos.error) return res.status(500).json({ error: productos.error.message });
     res.json({
@@ -159,7 +191,9 @@ function router(chequearClave, explicarError = (e) => e.message) {
       piezas: piezas.error ? [] : piezas.data,
       faltaTabla: piezas.error ? avisoTabla(piezas.error) : null,
       promo,
-      instagram: igListo(),
+      instagram: Boolean(ig.cuenta),
+      instagramUsuario: ig.cuenta?.username || null,
+      instagramError: ig.error || null,
       hoy: hoyAR(),
       logo: logo.data?.v ? String(logo.data.v) : null,
     });

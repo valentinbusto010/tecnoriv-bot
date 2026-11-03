@@ -147,10 +147,11 @@ function router(chequearClave, explicarError = (e) => e.message) {
   };
 
   r.get('/estado', async (req, res) => {
-    const [productos, piezas, promo] = await Promise.all([
+    const [productos, piezas, promo, logo] = await Promise.all([
       supabase.from('productos').select('id, nombre, categoria, precio, stock, imagen_url, activo').order('nombre'),
       supabase.from('piezas').select('id, formato, plantilla, titulo, estado, programado_para, publicado_at, ig_permalink, error, miniatura, producto_ids, created_at').order('created_at', { ascending: false }).limit(300),
       promoVigente(),
+      supabase.from('ajustes').select('valor->v').eq('clave', 'logo_marca').maybeSingle(),
     ]);
     if (productos.error) return res.status(500).json({ error: productos.error.message });
     res.json({
@@ -160,6 +161,7 @@ function router(chequearClave, explicarError = (e) => e.message) {
       promo,
       instagram: igListo(),
       hoy: hoyAR(),
+      logo: logo.data?.v ? String(logo.data.v) : null,
     });
   });
 
@@ -259,6 +261,22 @@ function router(chequearClave, explicarError = (e) => e.message) {
     res.json({ ok: true });
   });
 
+  // Logo de la marca (se ve en la moneda 3D). { imagen: dataURL png/jpg/webp/svg }
+  r.put('/logo', async (req, res) => {
+    const img = String(req.body.imagen || '');
+    if (!/^data:image\/(png|jpeg|webp|svg\+xml);base64,/.test(img)) return res.status(400).json({ error: 'Subí una imagen PNG, JPG, WEBP o SVG' });
+    if (img.length > 1.5 * 1024 * 1024) return res.status(400).json({ error: 'El logo es muy pesado (máx ~1 MB)' });
+    const valor = { data: img, v: Date.now() };
+    const { error } = await supabase.from('ajustes').upsert({ clave: 'logo_marca', valor }, { onConflict: 'clave' });
+    if (error) return res.status(400).json({ error: error.message });
+    res.json({ logo: String(valor.v) });
+  });
+  r.delete('/logo', async (req, res) => {
+    const { error } = await supabase.from('ajustes').delete().eq('clave', 'logo_marca');
+    if (error) return res.status(400).json({ error: error.message });
+    res.json({ logo: null });
+  });
+
   // Plan de la semana con IA (7 ideas listas para crear)
   r.post('/plan', async (req, res) => {
     try {
@@ -286,4 +304,18 @@ async function imagenPublica(req, res) {
   res.send(Buffer.from(b64, 'base64'));
 }
 
-module.exports = { router, imagenPublica, iniciarProgramador };
+// Logo público (lo usan la moneda 3D y la pantalla de entrada, antes de poner la contraseña).
+async function logoPublico(req, res) {
+  if (!supabase) return res.sendStatus(404);
+  const { data } = await supabase.from('ajustes').select('valor').eq('clave', 'logo_marca').maybeSingle();
+  const img = data?.valor?.data;
+  if (!img) return res.sendStatus(404);
+  const [cab, b64] = img.split(',');
+  res.set('Content-Type', (cab.match(/data:([^;]+)/) || [])[1] || 'image/png');
+  res.set('Cache-Control', req.query.v ? 'public, max-age=604800' : 'no-cache');
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'");
+  res.send(Buffer.from(b64, 'base64'));
+}
+
+module.exports = { router, imagenPublica, iniciarProgramador, logoPublico };

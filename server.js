@@ -10,7 +10,7 @@ const gestion = require('./src/gestion');
 const contenido = require('./src/contenido');
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '2mb' })); // 2 MB: alcanza para subir el logo de la marca
 const subida = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
 
 const { WHATSAPP_TOKEN, PHONE_NUMBER_ID, VERIFY_TOKEN, OWNER_PHONE, PANEL_PASSWORD } = process.env;
@@ -211,7 +211,8 @@ app.get('/contenido-sw.js', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'contenido-sw.js'));
 });
 app.get('/contenido/img/:clave.jpg', contenido.imagenPublica);
-app.use('/api/contenido', express.json({ limit: '2mb' }), contenido.router(chequearClave, explicarError));
+app.get('/marca/logo', contenido.logoPublico);
+app.use('/api/contenido', contenido.router(chequearClave, explicarError));
 
 app.get('/api/estado', chequearClave, async (req, res) => res.json(await estadoCatalogo()));
 

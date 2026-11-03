@@ -9,7 +9,7 @@ let cache = { t: 0, valor: null };
 async function leerAjustes() {
   if (!supabase) return {};
   if (cache.valor && Date.now() - cache.t < 30000) return cache.valor;
-  const { data, error } = await supabase.from('ajustes').select('clave, valor');
+  const { data, error } = await supabase.from('ajustes').select('clave, valor').neq('clave', 'logo_marca');
   const valor = error ? {} : Object.fromEntries((data || []).map((a) => [a.clave, a.valor]));
   cache = { t: Date.now(), valor };
   return valor;

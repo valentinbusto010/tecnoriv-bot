@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Fondo, Escena3D, card, fieldSt, chipSt, btnFondo } from "../compartido/tema.jsx";
+import { Fondo, Marca3D, card, fieldSt, chipSt, btnFondo } from "../compartido/tema.jsx";
 
 // Sistema de gestión TecnoRiv conectado al bot.
 // Los datos viven en Supabase y pasan por el servidor del bot (/api/gestion),
@@ -202,7 +202,7 @@ const Dashboard = ({ pedidos, productos, gastos, clientes, ajustes, irA }) => {
           <h1>Tu negocio,<br /><span>en vivo.</span></h1>
           <p style={{ color: "#8b93a7", fontSize: "14px", lineHeight: 1.55, margin: "14px 0 0", maxWidth: "320px" }}>Vendiste <b style={{ color: "#fff" }}>{fmt(m.ventas)}</b> este mes en {delMes.length} pedido{delMes.length === 1 ? "" : "s"}{delBot ? `, ${delBot} cerrado${delBot === 1 ? "" : "s"} por el bot` : ""}.</p>
         </div>
-        <Escena3D etiquetas={["$", "TR", "WA"]} imagenes={(() => { const f = productos.filter(p => p.activo !== false && p.imagen_url && p.stock > 0).sort((a, b) => b.stock - a.stock).map(p => p.imagen_url); return [f[1], f[0], f[2]]; })()} />
+        <Marca3D />
       </div>
       <div style={statsRow}>
         <StatCard label="Ventas del mes" value={fmt(m.ventas)} sub={`${nombreMes()} · ${delMes.length} pedidos`} accent="#10b981" />
@@ -364,6 +364,7 @@ const AyudaPrecio = ({ precio, costo, ajustes, onUsar }) => {
 const Stock = ({ productos, ajustes, accion, filtroInicial, faltaMargen }) => {
   const [modal, setModal] = useState(null); // "producto" | "costos" | "ajustes" | "marketplace"
   const [pubProducto, setPubProducto] = useState(null);
+  const [verFoto, setVerFoto] = useState(null);
   const [editando, setEditando] = useState(null);
   const [form, setForm] = useState(productoVacio);
   const [filtro, setFiltro] = useState(filtroInicial || "todos");
@@ -446,7 +447,11 @@ const Stock = ({ productos, ajustes, accion, filtroInicial, faltaMargen }) => {
                 const sug = precioSugerido(p.costo, ajustes);
                 return (
                   <Fila key={p.id} last={i === items.length - 1}>
-                    <div style={{ flex: 1, minWidth: "180px", opacity: p.activo === false ? 0.5 : 1 }}>
+                    <div style={{ flex: 1, minWidth: "200px", display: "flex", alignItems: "center", gap: "12px", opacity: p.activo === false ? 0.5 : 1 }}>
+                      <button onClick={() => p.imagen_url ? setVerFoto(p) : abrir(p)} title={p.imagen_url ? "Ver foto" : "Agregar foto"} style={{ width: 52, height: 52, flexShrink: 0, padding: 0, borderRadius: "12px", overflow: "hidden", cursor: "pointer", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center", color: "#4b5563" }}>
+                        {p.imagen_url ? <img src={p.imagen_url} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={e => { e.currentTarget.style.display = "none"; }} /> : <Icon name="stock" size={20} />}
+                      </button>
+                      <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ color: "#fff", fontWeight: 600, fontSize: "14px", display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
                         {p.nombre}
                         {p.activo !== false && p.stock <= p.alerta && <Badge color="#f59e0b">BAJO</Badge>}
@@ -458,6 +463,7 @@ const Stock = ({ productos, ajustes, accion, filtroInicial, faltaMargen }) => {
                         {fmt(p.precio)}
                         {m ? <> · costo {fmt(p.costo)} · <span style={{ color: colorMargen(m.pct, ajustes), fontWeight: 700 }}>ganás {fmt(m.unit)} ({m.pct}%)</span></> : " · sin costo"}
                         {rev === "margen bajo" && sug && <> · <span style={{ color: "#60a5fa" }}>sugerido {fmt(sug)}</span></>}
+                      </div>
                       </div>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -477,6 +483,8 @@ const Stock = ({ productos, ajustes, accion, filtroInicial, faltaMargen }) => {
           </div>
         );
       })}
+
+      {verFoto && <Visor items={[{ src: verFoto.imagen_url, nombre: verFoto.nombre }]} onClose={() => setVerFoto(null)} />}
 
       {modal === "producto" && (
         <Modal title={editando ? "Editar producto" : "Nuevo producto"} onClose={() => setModal(null)}>
@@ -1019,7 +1027,7 @@ const Login = ({ onOk, error }) => {
   return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
       <div style={{ ...card, padding: "8px 28px 28px", width: "100%", maxWidth: "400px", boxSizing: "border-box" }}>
-        <Escena3D alto={200} etiquetas={["$", "TR", "WA"]} />
+        <Marca3D alto={230} />
         <h2 style={{ margin: "0 0 6px", fontSize: "26px", fontWeight: 700, letterSpacing: "-0.03em" }}>Gestión <span style={{ color: "#1EB6FF" }}>Tecno Riv</span></h2>
         <p style={{ color: "#6b7280", fontSize: "14px", margin: "0 0 20px" }}>Usá la misma contraseña del panel (PANEL_PASSWORD).</p>
         <form onSubmit={e => { e.preventDefault(); setClaveLS(clave); onOk(); }}>

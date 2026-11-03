@@ -269,7 +269,7 @@ function router(chequearClave, explicarError = (e) => e.message) {
       return res.status(500).json({ error: falta ? `Falta correr supabase-gestion.sql en Supabase (${error.message})` : error.message });
     }
     // Ajustes del margen: si todavía no se corrió supabase-margen.sql, usa los valores por defecto.
-    const aj = await supabase.from('ajustes').select('clave, valor');
+    const aj = await supabase.from('ajustes').select('clave, valor').neq('clave', 'logo_marca');
     const ajustes = { ...AJUSTES_DEFECTO, ...Object.fromEntries((aj.data || []).map((a) => [a.clave, AJUSTES_TEXTO.includes(a.clave) ? String(a.valor ?? '') : Number(a.valor)])) };
     res.json({ productos: productos.data, pedidos: pedidos.data, gastos: gastos.data, clientes: clientes.data, ajustes, faltaMargen: Boolean(aj.error) });
   });

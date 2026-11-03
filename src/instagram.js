@@ -290,4 +290,8 @@ async function generarPackRegreso({ productos, promo, regalo, ids }) {
   return piezas;
 }
 
-module.exports = { generarPackRegreso, elegirProductos };
+module.exports = {
+  generarPackRegreso, elegirProductos,
+  // piezas de dibujo que reusa el estudio de contenido (src/estudio.js)
+  dibujo: { M, svg, envolver, rotulo, pastilla, pie, fondoFoto, lienzo, fotoRedonda, aJpg, pasos, cajaWhatsapp, etiqueta, nombreCorto, bajarFoto, fmt },
+};

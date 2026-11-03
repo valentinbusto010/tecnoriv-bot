@@ -8,6 +8,7 @@ Sistema para vender más con menos trabajo manual:
 | **Responde consultas de Marketplace**: pegás el mensaje del cliente y te da la respuesta lista para copiar | Panel → pestaña 2 |
 | **Atiende WhatsApp solo, 24/7**: responde, recuerda la charla, cierra la venta y te avisa | Automático |
 | **Sistema de gestión**: clientes, pedidos, stock y finanzas. Las ventas del bot entran solas | `/gestion` |
+| **Estudio de contenido**: carruseles, posts, historias y Marketplace con tu marca. Plan semanal, calendario y publicación en Instagram | `/contenido` |
 
 > **Importante sobre Marketplace:** Facebook no permite que un programa publique ni chatee solo en Marketplace. Si se usa un bot para eso, te bloquean la cuenta. Por eso el sistema te deja **todo listo** (imagen, título, descripción y respuestas) y vos solo copiás y pegás: 1 minuto por producto. En **WhatsApp** sí está permitido, y ahí el bot trabaja 100% solo.
 
@@ -46,6 +47,16 @@ Entrá a `https://TU-SERVIDOR/gestion` (misma contraseña que el panel). Funcion
 
 **Marketplace desde el sistema:** en Stock tocá el 📣 de un producto (o el botón **Marketplace**) y se genera la imagen con tu marca, el título y la descripción usando la foto del producto. Quedan guardadas: desde el celu descargás la imagen y copiás los textos para publicar.
 
+### Estudio de contenido (`/contenido`)
+App aparte (misma contraseña) para hacer y publicar todo el contenido de Instagram y Marketplace con los colores y el formato de @tecno_riv.
+- **Inicio:** cuánto publicaste en la semana (meta: 5), qué toca hoy, días sin contenido y el **Plan de la semana**: 7 ideas armadas con tu stock real. Tocás "Crear esto" y queda todo cargado.
+- **Crear:** elegís formato (**Carrusel** 6-9 slides, **Post**, **Historias**, **Marketplace**), plantilla (**Producto destacado, Colección, Comparativa, Tips/Educativo, Promo, Libre**), los productos y, si querés, la idea. Claude escribe los textos y el sistema dibuja las imágenes con las fotos reales, los precios de la base (con promo si hay) y el caption con hashtags. Podés dejarlo programado en el mismo paso.
+- **Biblioteca:** todas las piezas con su estado (borrador / programado / publicado). Adentro de cada una: guardar todas las imágenes, copiar el caption, **editar los textos de cada slide y rehacer las imágenes**, programar, publicar o marcar como publicada.
+- **Calendario:** los próximos 14 días con lo programado y lo publicado. "+ Crear" en cualquier día.
+- **Publicar en Instagram solo (opcional):** cargá `IG_USER_ID`, `IG_TOKEN` y `PUBLIC_URL` en Render. Con eso aparece "Publicar ahora en Instagram" y lo programado se publica solo a la hora elegida (te avisa por WhatsApp). Sin esas variables funciona en modo manual: a la hora programada te llega un WhatsApp "📅 Hoy toca publicar…" y desde el celu guardás las imágenes y copiás el caption.
+- **Marketplace** siempre es manual (Facebook no lo permite automático): imagen + título + descripción listos para copiar.
+- Instalala como app aparte desde `/contenido` → **App**.
+
 **Instalarla como app:** abrí `/gestion` y tocá **Instalar app** arriba a la derecha (Chrome en PC y Android). En iPhone: Safari → Compartir → Agregar a inicio.
 
 **Desde tu WhatsApp** (el número de `OWNER_PHONE`), mandale al bot:
@@ -63,7 +74,7 @@ Editá el archivo `src/negocio.js`.
 
 ## Instalación (una sola vez)
 
-1. **Supabase:** abrí tu proyecto → **SQL Editor** → pegá el contenido de `supabase.sql` → **Run**. Después corré también `supabase-gestion.sql`, `supabase-margen.sql`, `supabase-publicaciones.sql` y `supabase-instagram.sql` (agrega clientes, gastos y el stock automático; se puede correr más de una vez). Cargá tus productos reales en la tabla `productos` o desde `/gestion`.
+1. **Supabase:** abrí tu proyecto → **SQL Editor** → pegá el contenido de `supabase.sql` → **Run**. Después corré también `supabase-gestion.sql`, `supabase-margen.sql`, `supabase-publicaciones.sql`, `supabase-instagram.sql` y `supabase-contenido.sql` (agrega clientes, gastos y el stock automático; se puede correr más de una vez). Cargá tus productos reales en la tabla `productos` o desde `/gestion`.
 2. **Variables:** en tu hosting (Render, Railway, etc.) cargá las variables de `.env.example`:
    - `CLAUDE_API_KEY`, `WHATSAPP_TOKEN`, `PHONE_NUMBER_ID`, `VERIFY_TOKEN`, `SUPABASE_URL`, `SUPABASE_KEY` (las mismas que ya usabas)
    - **Nuevas:** `OWNER_PHONE` (tu número para los avisos de venta, ej `5493584123456`) y `PANEL_PASSWORD` (inventá una contraseña).
@@ -83,6 +94,21 @@ Para probar en tu compu: `npm install`, copiá `.env.example` como `.env`, compl
 - `public/panel.html` → el panel de Marketplace
 - `src/gestion.js` → ventas, clientes, gastos y la API del sistema de gestión
 - `gestion/App.jsx` → el sistema de gestión (si lo cambiás: `npm i --no-save esbuild react@18 react-dom@18 && node gestion/build.mjs`)
-- `supabase.sql` + `supabase-gestion.sql` + `supabase-margen.sql` + `supabase-publicaciones.sql` + `supabase-instagram.sql` → tablas de la base de datos
+- `supabase.sql` + `supabase-gestion.sql` + `supabase-margen.sql` + `supabase-publicaciones.sql` + `supabase-instagram.sql` + `supabase-contenido.sql` → tablas de la base de datos
 - `src/promo.js` → promo vigente · `src/instagram.js` → historias y carrusel
+- `src/estudio.js` → diseño de carruseles, posts e historias + plan semanal · `src/contenido.js` → API del estudio, publicación en Instagram y programador
+- `contenido/App.jsx` → el estudio de contenido (si lo cambiás: `npm i --no-save esbuild react@18 react-dom@18 && node contenido/build.mjs`)
 - `gestion/iconos.js` → genera los íconos de la app
+
+---
+
+## Conectar Instagram para que publique solo (opcional)
+
+Requisito: Instagram **profesional** (empresa o creador) vinculado a una página de Facebook.
+1. En [developers.facebook.com](https://developers.facebook.com) → tu app (la misma de WhatsApp sirve) → agregá el producto **Instagram** (API con inicio de sesión de Facebook).
+2. En Business Settings → Usuarios del sistema → tu usuario → **Generar token** con permisos `instagram_basic`, `instagram_content_publish`, `pages_show_list` y `pages_read_engagement`, asignándole la página y la cuenta de Instagram. Ese es `IG_TOKEN` (elegí que no venza).
+3. `IG_USER_ID`: en el Explorador de la API Graph consultá `me/accounts?fields=instagram_business_account` con ese token; es el número de `instagram_business_account.id`.
+4. `PUBLIC_URL`: la dirección de tu servidor, ej `https://tecnoriv-bot.onrender.com` (Instagram baja las imágenes desde ahí).
+5. Cargá las 3 variables en Render. En `/contenido` el indicador pasa a **● IG auto**.
+
+> Si el hosting se duerme (plan gratis de Render), la publicación programada sale cuando el servidor se despierta. Para que salga puntual, usá un plan que no duerma o un ping cada 10 minutos (ej. cron-job.org a `/`).

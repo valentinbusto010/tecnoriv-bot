@@ -86,58 +86,40 @@ export const Escena3D = ({ imagenes = [], alto = 260, etiquetas = ["IG", "TR", "
   );
 };
 
-// ─── MARCA 3D: tu logo en una moneda que gira + "TECNO RIV" con relieve y brillo ───
+// ─── MARCA 3D: tu logo en una placa 3D con espesor que flota, gira suave y brilla ───
 // El logo sale de /marca/logo (se sube desde /contenido). Si no hay, muestra "TR".
 const CSS_MARCA = `
-.tr-marca{position:relative;height:280px;perspective:1100px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px}
-.tr-marca .tr-glow{bottom:18px}
-.tr-coin-wrap{position:relative;width:132px;height:132px;transform-style:preserve-3d;animation:trBob 6s ease-in-out infinite}
-.tr-coin{position:absolute;inset:0;transform-style:preserve-3d;animation:trCoin 9s cubic-bezier(.45,.05,.55,.95) infinite}
-.tr-coin .cara,.tr-coin .canto{position:absolute;inset:0;border-radius:50%;backface-visibility:hidden;-webkit-backface-visibility:hidden}
-.tr-coin .cara{display:flex;align-items:center;justify-content:center;overflow:hidden;background:radial-gradient(circle at 30% 25%,#2a8bff 0%,#0050d8 45%,#021435 100%);border:2px solid rgba(160,215,255,.55);box-shadow:inset 0 0 22px rgba(255,255,255,.25),inset 0 -10px 24px rgba(0,0,0,.45),0 0 40px rgba(30,182,255,.35)}
-.tr-coin .cara img{width:78%;height:78%;object-fit:contain;filter:drop-shadow(0 4px 8px rgba(0,0,0,.45))}
-.tr-coin .cara b{font-size:52px;font-weight:900;letter-spacing:-.06em;color:#fff;text-shadow:0 3px 0 #0a3a8a,0 6px 14px rgba(0,0,0,.5)}
-.tr-coin .cara::after{content:"";position:absolute;inset:0;border-radius:50%;background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.55) 45%,transparent 60%);transform:translateX(-120%);animation:trSheen 4.5s ease-in-out infinite}
-.tr-coin .frente{transform:translateZ(7px)}
-.tr-coin .dorso{transform:rotateY(180deg) translateZ(7px)}
-.tr-coin .canto{background:linear-gradient(90deg,#062a6b,#1a7bff 50%,#062a6b);border-radius:50%;backface-visibility:visible}
-.tr-nombre{position:relative;margin:0;font-weight:800;font-size:46px;line-height:1;letter-spacing:-.04em;white-space:nowrap;transform-style:preserve-3d;animation:trTilt 7s ease-in-out infinite}
-.tr-nombre .capa{position:absolute;left:0;top:0;color:#0a2a66;pointer-events:none}
-.tr-nombre .top{position:relative;background:linear-gradient(100deg,#ffffff 0%,#dbeeff 35%,#ffffff 45%,#ffffff 100%);background-size:250% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:trBrillo 5s linear infinite}
-.tr-nombre .top i{font-style:normal;background:linear-gradient(100deg,#1EB6FF 0%,#7fd6ff 40%,#1EB6FF 55%,#3f8cff 100%);background-size:250% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:trBrillo 5s linear infinite}
-.tr-sub{color:#8b93a7;font-size:11px;font-weight:700;letter-spacing:.32em;text-transform:uppercase;margin-top:-10px}
-@keyframes trCoin{0%{transform:rotateY(-25deg) rotateX(8deg)}45%{transform:rotateY(335deg) rotateX(8deg)}100%{transform:rotateY(335deg) rotateX(8deg)}}
-@keyframes trSheen{0%,55%{transform:translateX(-120%)}80%,100%{transform:translateX(120%)}}
-@keyframes trTilt{0%,100%{transform:rotateX(14deg) rotateY(-14deg)}50%{transform:rotateX(8deg) rotateY(14deg)}}
-@keyframes trBrillo{from{background-position:120% 0}to{background-position:-130% 0}}
-@media (max-width:620px){.tr-marca{height:240px}.tr-nombre{font-size:38px}.tr-coin-wrap{width:112px;height:112px}}
-@media (prefers-reduced-motion:reduce){.tr-coin,.tr-coin-wrap,.tr-nombre,.tr-nombre .top,.tr-nombre .top i,.tr-coin .cara::after{animation:none!important}}
+.tr-marca{position:relative;height:320px;perspective:1000px;display:flex;align-items:center;justify-content:center}
+.tr-marca .tr-glow{bottom:14px;width:240px;margin-left:-120px;height:46px}
+.tr-logo-wrap{position:relative;width:230px;height:230px;transform-style:preserve-3d;animation:trBob 6s ease-in-out infinite}
+.tr-logo3d{position:absolute;inset:0;transform-style:preserve-3d;animation:trLogo 10s ease-in-out infinite}
+.tr-logo3d .placa{position:absolute;inset:0;border-radius:26px;overflow:hidden;transform:translateZ(9px);background:#071530;box-shadow:0 0 0 1px rgba(160,215,255,.35),0 0 50px rgba(30,182,255,.28);display:flex;align-items:center;justify-content:center}
+.tr-logo3d .placa img{width:100%;height:100%;object-fit:cover;display:block}
+.tr-logo3d .placa b{font-size:96px;font-weight:900;letter-spacing:-.06em;color:#fff;text-shadow:0 4px 0 #0a3a8a,0 10px 20px rgba(0,0,0,.5)}
+.tr-logo3d .placa::after{content:"";position:absolute;inset:0;background:linear-gradient(115deg,transparent 32%,rgba(255,255,255,.42) 46%,transparent 60%);transform:translateX(-130%);animation:trSheen 5s ease-in-out infinite}
+.tr-logo3d .placa::before{content:"";position:absolute;inset:0;z-index:1;border-radius:inherit;box-shadow:inset 0 1px 0 rgba(255,255,255,.35),inset 0 0 30px rgba(0,0,0,.25);pointer-events:none}
+.tr-logo3d .canto{position:absolute;inset:0;border-radius:26px;background:linear-gradient(135deg,#1a5fd0,#062048 60%,#020a1c)}
+@keyframes trLogo{0%,100%{transform:rotateY(-24deg) rotateX(10deg)}50%{transform:rotateY(24deg) rotateX(4deg)}}
+@keyframes trSheen{0%,55%{transform:translateX(-130%)}80%,100%{transform:translateX(130%)}}
+@media (max-width:620px){.tr-marca{height:290px}.tr-logo-wrap{width:210px;height:210px}}
+@media (prefers-reduced-motion:reduce){.tr-logo3d,.tr-logo-wrap,.tr-logo3d .placa::after{animation:none!important}}
 `;
 
 export const Marca3D = ({ version = "", alto }) => {
   const [hayLogo, setHayLogo] = useState(true);
   useEffect(() => setHayLogo(true), [version]);
-  const cara = hayLogo ? <img src={`/marca/logo?v=${version}`} alt="" onError={() => setHayLogo(false)} /> : <b>TR</b>;
-  // Canto de la moneda: discos apilados que le dan espesor real al girar.
-  const canto = [...Array(12)].map((_, i) => <div key={i} className="canto" style={{ transform: `translateZ(${6 - i}px)` }} />);
-  const nombre = <>TECNO <i>RIV</i></>;
+  // Espesor: placas apiladas detrás del logo, que se ven al girar.
+  const canto = [...Array(10)].map((_, i) => <div key={i} className="canto" style={{ transform: `translateZ(${8 - i}px)` }} />);
   return (
     <div className="tr-marca" style={alto ? { height: alto } : undefined} aria-label="Tecno Riv">
       <style>{CSS_MARCA}</style>
       <div className="tr-glow" />
-      <div className="tr-ring" style={{ top: "40%" }} />
-      <div className="tr-coin-wrap">
-        <div className="tr-coin">
+      <div className="tr-logo-wrap">
+        <div className="tr-logo3d">
           {canto}
-          <div className="cara frente">{cara}</div>
-          <div className="cara dorso">{cara}</div>
+          <div className="placa">{hayLogo ? <img src={`/marca/logo?v=${version}`} alt="Tecno Riv" onError={() => setHayLogo(false)} /> : <b>TR</b>}</div>
         </div>
       </div>
-      <h2 className="tr-nombre">
-        {[6, 5, 4, 3, 2, 1].map(z => <span key={z} className="capa" aria-hidden="true" style={{ transform: `translate(${z * 0.6}px, ${z}px)`, opacity: 0.35 + z * 0.08, color: z > 3 ? "#041634" : "#0a3a8a" }}>{nombre}</span>)}
-        <span className="top">{nombre}</span>
-      </h2>
-      <div className="tr-sub">Río Cuarto · Tecnología</div>
     </div>
   );
 };

@@ -579,7 +579,7 @@ const Login = ({ onOk, error }) => {
   return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
       <div style={{ ...card, padding: "8px 28px 28px", width: "100%", maxWidth: "400px", boxSizing: "border-box" }}>
-        <Marca3D alto={230} />
+        <Marca3D alto={260} />
         <h2 style={{ margin: "0 0 6px", fontSize: "26px", fontWeight: 700, letterSpacing: "-0.03em" }}>Contenido <span style={{ color: "#1EB6FF" }}>Tecno Riv</span></h2>
         <p style={{ color: "#6b7280", fontSize: "14px", margin: "0 0 20px" }}>Usá la misma contraseña del panel y de /gestion.</p>
         <form onSubmit={e => { e.preventDefault(); setClaveLS(clave); onOk(); }}>

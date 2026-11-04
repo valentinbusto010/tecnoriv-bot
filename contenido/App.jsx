@@ -225,8 +225,9 @@ const Inicio = ({ datos, onOpen, irACrear, irA }) => {
         <StatCard label="Días sin contenido" value={huecos} sub="En los próximos 7" accent={huecos > 2 ? "#ef4444" : "#10b981"} />
       </div>
 
-      {!instagram && <div style={{ ...alertaSt("#0066FF"), marginBottom: "16px", color: "#93c5fd", fontSize: "13px", lineHeight: 1.5 }}>
-        <b>Instagram en modo manual.</b> Todo queda listo para descargar y copiar, y el día programado te llega un recordatorio por WhatsApp. Para que publique solo, cargá <code>IG_USER_ID</code>, <code>IG_TOKEN</code> y <code>PUBLIC_URL</code> en Render (ver README).
+      {datos.instagramError && <div style={{ ...alertaSt("#ef4444"), marginBottom: "16px", color: "#fca5a5", fontSize: "13px", lineHeight: 1.5 }}><b>Instagram no se pudo conectar:</b> {datos.instagramError}</div>}
+      {!instagram && !datos.instagramError && <div style={{ ...alertaSt("#0066FF"), marginBottom: "16px", color: "#93c5fd", fontSize: "13px", lineHeight: 1.5 }}>
+        <b>Instagram en modo manual.</b> Todo queda listo para descargar y copiar, y el día programado te llega un recordatorio por WhatsApp. Para que publique solo, cargá <code>IG_TOKEN</code> en Render (ver README).
       </div>}
       {promo && <div style={{ ...alertaSt("#E5262B"), marginBottom: "16px", color: "#fca5a5", fontSize: "13px" }}>🔥 Promo vigente: {promo.descuento ? `${promo.descuento}% OFF` : "regalo"} hasta el {promo.hasta.slice(8, 10)}/{promo.hasta.slice(5, 7)}. Los precios de las piezas ya salen con descuento.</div>}
 
@@ -640,7 +641,7 @@ export default function App() {
         <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
           <div style={{ width: "30px", height: "30px", background: "linear-gradient(135deg,#1a7bff,#0047c2)", borderRadius: "9px", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: "12px", boxShadow: "0 6px 16px -4px rgba(0,102,255,0.7), inset 0 1px 0 rgba(255,255,255,0.25)" }}>TR</div>
           <span style={{ fontWeight: 700, fontSize: "15px", letterSpacing: "-0.02em" }}>Contenido</span>
-          <span title={datos.instagram ? "Instagram conectado: publica solo" : "Instagram en modo manual"} style={{ color: datos.instagram ? "#10b981" : "#6b7280", fontSize: "11px", whiteSpace: "nowrap" }}>● {datos.instagram ? "IG auto" : "IG manual"}</span>
+          <span title={datos.instagram ? "Instagram conectado: publica solo" : "Instagram en modo manual"} style={{ color: datos.instagram ? "#10b981" : datos.instagramError ? "#ef4444" : "#6b7280", fontSize: "11px", whiteSpace: "nowrap" }}>● {datos.instagram ? (datos.instagramUsuario ? `@${datos.instagramUsuario}` : "IG auto") : datos.instagramError ? "IG con error" : "IG manual"}</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
           {instalar.visible && <button onClick={instalar.abrir} style={{ background: "#0066FF22", color: "#60a5fa", border: "1px solid #0066FF44", borderRadius: "100px", padding: "4px 10px", fontSize: "11px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: "4px" }}><Icon name="download" size={12} /> App</button>}

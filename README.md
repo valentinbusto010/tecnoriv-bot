@@ -53,7 +53,7 @@ App aparte (misma contraseña) para hacer y publicar todo el contenido de Instag
 - **Crear:** elegís formato (**Carrusel** 6-9 slides, **Post**, **Historias**, **Marketplace**), plantilla (**Producto destacado, Colección, Comparativa, Tips/Educativo, Promo, Libre**), los productos y, si querés, la idea. Claude escribe los textos y el sistema dibuja las imágenes con las fotos reales, los precios de la base (con promo si hay) y el caption con hashtags. Podés dejarlo programado en el mismo paso.
 - **Biblioteca:** todas las piezas con su estado (borrador / programado / publicado). Adentro de cada una: guardar todas las imágenes, copiar el caption, **editar los textos de cada slide y rehacer las imágenes**, programar, publicar o marcar como publicada.
 - **Calendario:** los próximos 14 días con lo programado y lo publicado. "+ Crear" en cualquier día.
-- **Publicar en Instagram solo (opcional):** cargá `IG_USER_ID`, `IG_TOKEN` y `PUBLIC_URL` en Render. Con eso aparece "Publicar ahora en Instagram" y lo programado se publica solo a la hora elegida (te avisa por WhatsApp). Sin esas variables funciona en modo manual: a la hora programada te llega un WhatsApp "📅 Hoy toca publicar…" y desde el celu guardás las imágenes y copiás el caption.
+- **Publicar en Instagram solo (opcional):** cargá `IG_TOKEN` en Render (la cuenta de Instagram y la dirección del servidor se detectan solas). Con eso aparece "Publicar ahora en Instagram" y lo programado se publica solo a la hora elegida (te avisa por WhatsApp). Sin esas variables funciona en modo manual: a la hora programada te llega un WhatsApp "📅 Hoy toca publicar…" y desde el celu guardás las imágenes y copiás el caption.
 - **Marketplace** siempre es manual (Facebook no lo permite automático): imagen + título + descripción listos para copiar.
 - Instalala como app aparte desde `/contenido` → **App**.
 
@@ -104,11 +104,12 @@ Para probar en tu compu: `npm install`, copiá `.env.example` como `.env`, compl
 
 ## Conectar Instagram para que publique solo (opcional)
 
-Requisito: Instagram **profesional** (empresa o creador) vinculado a una página de Facebook.
-1. En [developers.facebook.com](https://developers.facebook.com) → tu app (la misma de WhatsApp sirve) → agregá el producto **Instagram** (API con inicio de sesión de Facebook).
-2. En Business Settings → Usuarios del sistema → tu usuario → **Generar token** con permisos `instagram_basic`, `instagram_content_publish`, `pages_show_list` y `pages_read_engagement`, asignándole la página y la cuenta de Instagram. Ese es `IG_TOKEN` (elegí que no venza).
-3. `IG_USER_ID`: en el Explorador de la API Graph consultá `me/accounts?fields=instagram_business_account` con ese token; es el número de `instagram_business_account.id`.
-4. `PUBLIC_URL`: la dirección de tu servidor, ej `https://tecnoriv-bot.onrender.com` (Instagram baja las imágenes desde ahí).
-5. Cargá las 3 variables en Render. En `/contenido` el indicador pasa a **● IG auto**.
+1. Instagram **profesional** (Empresa o Creador) y **vinculado a la página de Facebook Tecno Riv**: en Meta Business Suite → Configuración → Cuentas de Instagram → Conectar.
+2. En [developers.facebook.com](https://developers.facebook.com) → tu app (la de WhatsApp sirve) → **Casos de uso** → agregá "Administrar mensajes y contenido en Instagram" (API de Instagram con inicio de sesión de Facebook).
+3. En [business.facebook.com/settings](https://business.facebook.com/settings) → **Usuarios del sistema** → tu usuario (o creá uno *Administrador*) → **Asignar activos**: la página Tecno Riv, la cuenta de Instagram y la app, con control total.
+4. **Generar token** → elegí la app → caducidad **Nunca** → permisos `instagram_basic`, `instagram_content_publish`, `pages_show_list`, `pages_read_engagement` y `business_management`. Ese es `IG_TOKEN`.
+5. Cargalo en Render → Environment → `IG_TOKEN`. En `/contenido` arriba tiene que aparecer **● @tecno_riv** en verde. Si sale **IG con error**, el mensaje en Inicio dice qué falta.
+
+Opcionales: `IG_USER_ID` (si tenés varias cuentas y querés fijar una) y `PUBLIC_URL` (Render ya la define sola).
 
 > Si el hosting se duerme (plan gratis de Render), la publicación programada sale cuando el servidor se despierta. Para que salga puntual, usá un plan que no duerma o un ping cada 10 minutos (ej. cron-job.org a `/`).

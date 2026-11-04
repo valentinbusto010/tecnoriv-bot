@@ -88,60 +88,84 @@ export const Escena3D = ({ imagenes = [], alto = 260, etiquetas = ["IG", "TR", "
 // ─── MARCA 3D: el cartel "TECNOriv" como objeto 3D que gira, con auriculares de vincha colgando ───
 // Vector puro (se ve nítido en cualquier pantalla). Fuente Michroma, cargada en el .html de cada app.
 const GROSOR = 22; // px de espesor del cartel
-const CAPAS_AURI = 10; // capas del auricular (le dan volumen al girar)
+const CAPAS_AURI = 12; // capas del auricular: le dan volumen al girar
+const Z_AURI = GROSOR / 2 + 14; // el auricular cuelga por delante de la cara del cartel
 const CSS_MARCA = `
 .tr-marca{position:relative;height:320px;perspective:1200px;display:flex;align-items:center;justify-content:center}
-.tr-marca .tr-glow{bottom:44px;width:340px;margin-left:-170px;height:40px}
-.tr-cartel-wrap{position:relative;width:440px;height:92px;transform-style:preserve-3d;animation:trBob 6s ease-in-out infinite}
+.tr-marca .tr-glow{bottom:46px;width:300px;margin-left:-150px;height:40px}
+.tr-cartel-wrap{position:relative;width:330px;height:96px;margin-right:56px;transform-style:preserve-3d;animation:trBob 6s ease-in-out infinite}
 .tr-cartel{position:absolute;inset:0;transform-style:preserve-3d;animation:trGiro 8s linear infinite;will-change:transform}
-.tr-cartel .cara{position:absolute;inset:0;border-radius:12px;display:flex;align-items:center;justify-content:center;padding-right:78px;box-sizing:border-box;backface-visibility:hidden;-webkit-backface-visibility:hidden;overflow:hidden;
+.tr-cartel .cara{position:absolute;inset:0;border-radius:14px;display:flex;align-items:center;justify-content:center;box-sizing:border-box;backface-visibility:hidden;-webkit-backface-visibility:hidden;overflow:hidden;
   background:linear-gradient(180deg,#141c2c 0%,#070b14 55%,#04070d 100%);
   border:2px solid rgba(150,205,255,.75);
   box-shadow:0 0 18px rgba(30,150,255,.75),0 0 46px rgba(30,120,255,.45),inset 0 0 14px rgba(80,170,255,.35),inset 0 1px 0 rgba(255,255,255,.35)}
-.tr-cartel .cara span{font-family:'Michroma','Space Grotesk',sans-serif;font-size:44px;line-height:1;letter-spacing:.04em;color:#fff;white-space:nowrap;
+.tr-cartel .frente{padding-right:50px}
+.tr-cartel .cara span{font-family:'Michroma','Space Grotesk',sans-serif;font-size:34px;line-height:1;letter-spacing:0;color:#fff;white-space:nowrap;
   text-shadow:0 0 6px rgba(255,255,255,.55),0 0 18px rgba(120,190,255,.55)}
 .tr-cartel .cara span i{font-style:normal;color:#1EB6FF;text-shadow:0 0 6px rgba(30,182,255,.7),0 0 18px rgba(30,182,255,.6)}
 .tr-cartel .cara::after{content:"";position:absolute;inset:-2px;background:linear-gradient(105deg,transparent 35%,rgba(255,255,255,.38) 48%,transparent 60%);transform:translateX(-130%);animation:trSheen 4s ease-in-out infinite}
 .tr-cartel .frente{transform:translateZ(${GROSOR / 2}px)}
-.tr-cartel .dorso{transform:rotateY(180deg) translateZ(${GROSOR / 2}px);padding-right:0;padding-left:78px}
-.tr-cartel .canto{position:absolute;inset:0;border-radius:12px;background:#0a1730;border:2px solid rgba(70,140,255,.55)}
-/* Auriculares: enganchados en la esquina de arriba a la derecha, delante del cartel, balanceándose */
-.tr-auri{position:absolute;width:92px;height:100px;right:-34px;top:-20px;transform-style:preserve-3d;transform-origin:50% 6%;animation:trColgar 3.2s ease-in-out infinite}
-.tr-auri.atras{animation-name:trColgarAtras}
-.tr-auri svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
-@keyframes trColgar{0%,100%{transform:translateZ(${GROSOR / 2 + 10}px) rotateZ(20deg)}50%{transform:translateZ(${GROSOR / 2 + 10}px) rotateZ(30deg)}}
-@keyframes trColgarAtras{0%,100%{transform:translateZ(-${GROSOR / 2 + 10}px) rotateY(180deg) rotateZ(-20deg)}50%{transform:translateZ(-${GROSOR / 2 + 10}px) rotateY(180deg) rotateZ(-30deg)}}
+.tr-cartel .dorso{transform:rotateY(180deg) translateZ(${GROSOR / 2}px)}
+.tr-cartel .canto{position:absolute;inset:0;border-radius:14px;background:#0a1730;border:2px solid rgba(70,140,255,.55)}
+/* Auricular: la vincha enganchada en la esquina de arriba a la derecha, colgando por delante y balanceándose.
+   Las capas se ocultan cuando quedan de espaldas: del otro lado del cartel no asoma "medio auricular". */
+.tr-auri{position:absolute;width:100px;height:107px;right:-44px;top:-11px;transform-style:preserve-3d;transform-origin:50% 6.5%;animation:trColgar 3.4s ease-in-out infinite}
+.tr-auri svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;backface-visibility:hidden;-webkit-backface-visibility:hidden}
+@keyframes trColgar{0%,100%{transform:translateZ(${Z_AURI}px) rotateZ(-9deg)}50%{transform:translateZ(${Z_AURI}px) rotateZ(-2deg)}}
 @keyframes trGiro{from{transform:rotateX(10deg) rotateY(0deg)}to{transform:rotateX(10deg) rotateY(360deg)}}
 @keyframes trSheen{0%,55%{transform:translateX(-130%)}80%,100%{transform:translateX(130%)}}
-@media (max-width:620px){.tr-marca{height:230px}.tr-cartel-wrap{width:300px;height:66px}.tr-cartel .cara{padding-right:52px}.tr-cartel .dorso{padding-right:0;padding-left:52px}.tr-cartel .cara span{font-size:28px}.tr-auri{width:64px;height:70px;right:-22px;top:-14px}.tr-marca .tr-glow{bottom:34px;width:260px;margin-left:-130px}}
-@media (prefers-reduced-motion:reduce){.tr-cartel{animation:trGiro 15s linear infinite!important}.tr-cartel-wrap,.tr-cartel .cara::after,.tr-auri{animation:none!important}}
+@media (max-width:620px){.tr-marca{height:240px}.tr-cartel-wrap{width:250px;height:72px;margin-right:44px}.tr-cartel .frente{padding-right:38px}.tr-cartel .cara span{font-size:26px}
+  .tr-auri{width:70px;height:75px;right:-30px;top:-8px}.tr-marca .tr-glow{bottom:36px;width:240px;margin-left:-120px}}
+@media (prefers-reduced-motion:reduce){.tr-cartel{animation:trGiro 15s linear infinite!important}.tr-cartel-wrap,.tr-cartel .cara::after{animation:none!important}.tr-auri{animation:none!important;transform:translateZ(${Z_AURI}px) rotateZ(-6deg)}}
 `;
 
-// Silueta del auricular de vincha. "frente" = capa de adelante con brillo; las demás forman el volumen.
-const Auricular = ({ frente, z }) => (
-  <svg viewBox="0 0 120 130" style={{ transform: `translateZ(${z}px)` }} aria-hidden="true">
-    {frente && (
-      <defs>
-        <linearGradient id="trVincha" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#ffffff" /><stop offset=".5" stopColor="#b9c7da" /><stop offset="1" stopColor="#7d8fa8" /></linearGradient>
-        <radialGradient id="trCopa" cx=".35" cy=".3" r=".8"><stop offset="0" stopColor="#2a3a5a" /><stop offset=".6" stopColor="#0c1424" /><stop offset="1" stopColor="#04070d" /></radialGradient>
-      </defs>
-    )}
-    {/* vincha */}
-    <path d="M22 80 C 18 30, 42 8, 60 8 C 78 8, 102 30, 98 80" fill="none" stroke={frente ? "url(#trVincha)" : "#3b4a63"} strokeWidth="10" strokeLinecap="round" />
-    {frente && <path d="M30 58 C 32 30, 46 18, 60 18 C 74 18, 88 30, 90 58" fill="none" stroke="#0b1424" strokeWidth="5" strokeLinecap="round" opacity=".55" />}
-    {/* brazos */}
-    <rect x="17" y="64" width="10" height="20" rx="4" fill={frente ? "#9fb1c8" : "#34425a"} />
-    <rect x="93" y="64" width="10" height="20" rx="4" fill={frente ? "#9fb1c8" : "#34425a"} />
-    {/* copas */}
-    <rect x="4" y="78" width="34" height="48" rx="15" fill={frente ? "url(#trCopa)" : "#0a1428"} stroke={frente ? "#1EB6FF" : "#173a75"} strokeWidth="3" />
-    <rect x="82" y="78" width="34" height="48" rx="15" fill={frente ? "url(#trCopa)" : "#0a1428"} stroke={frente ? "#1EB6FF" : "#173a75"} strokeWidth="3" />
-    {frente && <>
-      <ellipse cx="21" cy="102" rx="7" ry="11" fill="none" stroke="#1EB6FF" strokeWidth="2" opacity=".8" />
-      <ellipse cx="99" cy="102" rx="7" ry="11" fill="none" stroke="#1EB6FF" strokeWidth="2" opacity=".8" />
-      <path d="M12 86 Q 16 82 22 82" stroke="#fff" strokeWidth="2" fill="none" opacity=".5" strokeLinecap="round" />
-    </>}
-  </svg>
-);
+// Auricular de vincha (vista 3/4): vincha metálica con almohadilla de cuero, deslizadores, horquillas
+// y copas ovaladas con almohadillas. "frente" = la capa de adelante con todo el detalle; las demás son el volumen.
+const Auricular = ({ frente, z }) => {
+  const id = (n) => `trA${n}`;
+  const metal = frente ? `url(#${id("metal")})` : "#2b3442";
+  const casco = frente ? `url(#${id("casco")})` : "#0b0f16";
+  return (
+    <svg viewBox="0 0 140 150" style={{ transform: `translateZ(${z}px)` }} aria-hidden="true">
+      {frente && (
+        <defs>
+          <linearGradient id={id("metal")} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#ffffff" /><stop offset=".35" stopColor="#d9e0e8" /><stop offset=".7" stopColor="#9aa6b6" /><stop offset="1" stopColor="#6f7b8c" /></linearGradient>
+          <linearGradient id={id("cuero")} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#3a404b" /><stop offset="1" stopColor="#14171d" /></linearGradient>
+          <radialGradient id={id("casco")} cx=".34" cy=".28" r=".85"><stop offset="0" stopColor="#6b7689" /><stop offset=".35" stopColor="#2c3442" /><stop offset=".8" stopColor="#10141c" /><stop offset="1" stopColor="#06080c" /></radialGradient>
+          <radialGradient id={id("almo")} cx=".5" cy=".5" r=".6"><stop offset="0" stopColor="#0c0e12" /><stop offset=".75" stopColor="#23272f" /><stop offset="1" stopColor="#3a3f49" /></radialGradient>
+        </defs>
+      )}
+      {/* almohadillas (detrás de las copas, asoman hacia adentro) */}
+      <ellipse cx="38" cy="116" rx="8" ry="24" fill={frente ? `url(#${id("almo")})` : "#0d1015"} />
+      <ellipse cx="102" cy="116" rx="8" ry="24" fill={frente ? `url(#${id("almo")})` : "#0d1015"} />
+      {/* vincha metálica */}
+      <path d="M26 92 C 20 42, 44 10, 70 10 C 96 10, 120 42, 114 92" fill="none" stroke={metal} strokeWidth="6.5" strokeLinecap="round" />
+      {/* almohadilla de cuero de la vincha, con costura */}
+      <path d="M38 50 C 44 28, 57 20, 70 20 C 83 20, 96 28, 102 50" fill="none" stroke={frente ? `url(#${id("cuero")})` : "#161a21"} strokeWidth="10" strokeLinecap="round" />
+      {frente && <path d="M40 48 C 46 29, 58 23, 70 23 C 82 23, 94 29, 100 48" fill="none" stroke="#5a6170" strokeWidth=".9" strokeDasharray="2 2.5" opacity=".9" />}
+      {/* deslizadores */}
+      <rect x="20.5" y="80" width="11" height="20" rx="3.5" fill={metal} />
+      <rect x="108.5" y="80" width="11" height="20" rx="3.5" fill={metal} />
+      {/* horquillas */}
+      <path d="M12 104 Q 26 94 40 104" fill="none" stroke={frente ? "#3d4656" : "#1c222c"} strokeWidth="4" strokeLinecap="round" />
+      <path d="M100 104 Q 114 94 128 104" fill="none" stroke={frente ? "#3d4656" : "#1c222c"} strokeWidth="4" strokeLinecap="round" />
+      {/* copas */}
+      <ellipse cx="26" cy="118" rx="19" ry="26" fill={casco} stroke={frente ? "#05070a" : "#070a10"} strokeWidth="1.5" />
+      <ellipse cx="114" cy="118" rx="19" ry="26" fill={casco} stroke={frente ? "#05070a" : "#070a10"} strokeWidth="1.5" />
+      {frente && <>
+        {/* aro celeste de la marca + brillo */}
+        <ellipse cx="26" cy="118" rx="12.5" ry="18" fill="none" stroke="#1EB6FF" strokeWidth="1.8" opacity=".9" />
+        <ellipse cx="114" cy="118" rx="12.5" ry="18" fill="none" stroke="#1EB6FF" strokeWidth="1.8" opacity=".9" />
+        <ellipse cx="20" cy="106" rx="5" ry="8" fill="#fff" opacity=".22" />
+        <ellipse cx="108" cy="106" rx="5" ry="8" fill="#fff" opacity=".22" />
+        <circle cx="26" cy="118" r="2.2" fill="#1EB6FF" />
+        <circle cx="114" cy="118" r="2.2" fill="#1EB6FF" />
+        {/* brillo en la vincha */}
+        <path d="M34 40 C 42 22, 56 14, 70 13" fill="none" stroke="#fff" strokeWidth="1.6" opacity=".55" strokeLinecap="round" />
+      </>}
+    </svg>
+  );
+};
 
 export const Marca3D = ({ alto }) => {
   // Espesor: capas apiladas entre el frente y el dorso; se ven cuando el cartel gira de costado.
@@ -156,12 +180,10 @@ export const Marca3D = ({ alto }) => {
           {canto}
           <div className="cara frente">{texto}</div>
           <div className="cara dorso">{texto}</div>
-          {["", "atras"].map(lado => (
-            <div key={lado} className={`tr-auri ${lado}`}>
-              {[...Array(CAPAS_AURI)].map((_, i) => <Auricular key={i} z={-i} frente={false} />)}
-              <Auricular z={1} frente />
-            </div>
-          ))}
+          <div className="tr-auri">
+            {[...Array(CAPAS_AURI)].map((_, i) => <Auricular key={i} z={-CAPAS_AURI + i} frente={false} />)}
+            <Auricular z={0} frente />
+          </div>
         </div>
       </div>
     </div>

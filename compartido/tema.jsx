@@ -87,92 +87,35 @@ export const Escena3D = ({ imagenes = [], alto = 260, etiquetas = ["IG", "TR", "
   );
 };
 
-// ─── MARCA 3D (respaldo sin WebGL): el cartel "TECNOriv" como objeto 3D que gira, con auriculares de vincha colgando ───
+// ─── MARCA 3D (respaldo sin WebGL): el cartel "TECNO riv" como objeto 3D que gira ───
 // Vector puro (se ve nítido en cualquier pantalla). Fuente Michroma, cargada en el .html de cada app.
 const GROSOR = 22; // px de espesor del cartel
-const CAPAS_AURI = 12; // capas del auricular: le dan volumen al girar
-const Z_AURI = GROSOR / 2 + 14; // el auricular cuelga por delante de la cara del cartel
 const CSS_MARCA = `
 .tr-marca{position:relative;height:320px;perspective:1200px;display:flex;align-items:center;justify-content:center}
 .tr-marca .tr-glow{bottom:46px;width:300px;margin-left:-150px;height:40px}
-.tr-cartel-wrap{position:relative;width:330px;height:96px;margin-right:56px;transform-style:preserve-3d;animation:trBob 6s ease-in-out infinite}
+.tr-cartel-wrap{position:relative;width:380px;height:104px;transform-style:preserve-3d;animation:trBob 6s ease-in-out infinite}
 .tr-cartel{position:absolute;inset:0;transform-style:preserve-3d;animation:trGiro 8s linear infinite;will-change:transform}
 .tr-cartel .cara{position:absolute;inset:0;border-radius:14px;display:flex;align-items:center;justify-content:center;box-sizing:border-box;backface-visibility:hidden;-webkit-backface-visibility:hidden;overflow:hidden;
   background:linear-gradient(180deg,#141c2c 0%,#070b14 55%,#04070d 100%);
   border:2px solid rgba(150,205,255,.75);
   box-shadow:0 0 18px rgba(30,150,255,.75),0 0 46px rgba(30,120,255,.45),inset 0 0 14px rgba(80,170,255,.35),inset 0 1px 0 rgba(255,255,255,.35)}
-.tr-cartel .frente{padding-right:50px}
-.tr-cartel .cara span{font-family:'Michroma','Space Grotesk',sans-serif;font-size:34px;line-height:1;letter-spacing:0;color:#fff;white-space:nowrap;
+.tr-cartel .cara span{font-family:'Michroma','Space Grotesk',sans-serif;font-size:40px;line-height:1;letter-spacing:0;color:#fff;white-space:nowrap;
   text-shadow:0 0 6px rgba(255,255,255,.55),0 0 18px rgba(120,190,255,.55)}
 .tr-cartel .cara span i{font-style:normal;color:#1EB6FF;text-shadow:0 0 6px rgba(30,182,255,.7),0 0 18px rgba(30,182,255,.6)}
 .tr-cartel .cara::after{content:"";position:absolute;inset:-2px;background:linear-gradient(105deg,transparent 35%,rgba(255,255,255,.38) 48%,transparent 60%);transform:translateX(-130%);animation:trSheen 4s ease-in-out infinite}
 .tr-cartel .frente{transform:translateZ(${GROSOR / 2}px)}
 .tr-cartel .dorso{transform:rotateY(180deg) translateZ(${GROSOR / 2}px)}
 .tr-cartel .canto{position:absolute;inset:0;border-radius:14px;background:#0a1730;border:2px solid rgba(70,140,255,.55)}
-/* Auricular: la vincha enganchada en la esquina de arriba a la derecha, colgando por delante y balanceándose.
-   Las capas se ocultan cuando quedan de espaldas: del otro lado del cartel no asoma "medio auricular". */
-.tr-auri{position:absolute;width:100px;height:107px;right:-44px;top:-11px;transform-style:preserve-3d;transform-origin:50% 6.5%;animation:trColgar 3.4s ease-in-out infinite}
-.tr-auri svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;backface-visibility:hidden;-webkit-backface-visibility:hidden}
-@keyframes trColgar{0%,100%{transform:translateZ(${Z_AURI}px) rotateZ(-9deg)}50%{transform:translateZ(${Z_AURI}px) rotateZ(-2deg)}}
 @keyframes trGiro{from{transform:rotateX(10deg) rotateY(0deg)}to{transform:rotateX(10deg) rotateY(360deg)}}
 @keyframes trSheen{0%,55%{transform:translateX(-130%)}80%,100%{transform:translateX(130%)}}
-@media (max-width:620px){.tr-marca{height:240px}.tr-cartel-wrap{width:250px;height:72px;margin-right:44px}.tr-cartel .frente{padding-right:38px}.tr-cartel .cara span{font-size:26px}
-  .tr-auri{width:70px;height:75px;right:-30px;top:-8px}.tr-marca .tr-glow{bottom:36px;width:240px;margin-left:-120px}}
-@media (prefers-reduced-motion:reduce){.tr-cartel{animation:trGiro 15s linear infinite!important}.tr-cartel-wrap,.tr-cartel .cara::after{animation:none!important}.tr-auri{animation:none!important;transform:translateZ(${Z_AURI}px) rotateZ(-6deg)}}
+@media (max-width:620px){.tr-marca{height:240px}.tr-cartel-wrap{width:290px;height:80px}.tr-cartel .cara span{font-size:30px}.tr-marca .tr-glow{bottom:36px;width:240px;margin-left:-120px}}
+@media (prefers-reduced-motion:reduce){.tr-cartel{animation:trGiro 15s linear infinite!important}.tr-cartel-wrap,.tr-cartel .cara::after{animation:none!important}}
 `;
-
-// Auricular de vincha (vista 3/4): vincha metálica con almohadilla de cuero, deslizadores, horquillas
-// y copas ovaladas con almohadillas. "frente" = la capa de adelante con todo el detalle; las demás son el volumen.
-const Auricular = ({ frente, z }) => {
-  const id = (n) => `trA${n}`;
-  const metal = frente ? `url(#${id("metal")})` : "#2b3442";
-  const casco = frente ? `url(#${id("casco")})` : "#0b0f16";
-  return (
-    <svg viewBox="0 0 140 150" style={{ transform: `translateZ(${z}px)` }} aria-hidden="true">
-      {frente && (
-        <defs>
-          <linearGradient id={id("metal")} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#ffffff" /><stop offset=".35" stopColor="#d9e0e8" /><stop offset=".7" stopColor="#9aa6b6" /><stop offset="1" stopColor="#6f7b8c" /></linearGradient>
-          <linearGradient id={id("cuero")} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#3a404b" /><stop offset="1" stopColor="#14171d" /></linearGradient>
-          <radialGradient id={id("casco")} cx=".34" cy=".28" r=".85"><stop offset="0" stopColor="#6b7689" /><stop offset=".35" stopColor="#2c3442" /><stop offset=".8" stopColor="#10141c" /><stop offset="1" stopColor="#06080c" /></radialGradient>
-          <radialGradient id={id("almo")} cx=".5" cy=".5" r=".6"><stop offset="0" stopColor="#0c0e12" /><stop offset=".75" stopColor="#23272f" /><stop offset="1" stopColor="#3a3f49" /></radialGradient>
-        </defs>
-      )}
-      {/* almohadillas (detrás de las copas, asoman hacia adentro) */}
-      <ellipse cx="38" cy="116" rx="8" ry="24" fill={frente ? `url(#${id("almo")})` : "#0d1015"} />
-      <ellipse cx="102" cy="116" rx="8" ry="24" fill={frente ? `url(#${id("almo")})` : "#0d1015"} />
-      {/* vincha metálica */}
-      <path d="M26 92 C 20 42, 44 10, 70 10 C 96 10, 120 42, 114 92" fill="none" stroke={metal} strokeWidth="6.5" strokeLinecap="round" />
-      {/* almohadilla de cuero de la vincha, con costura */}
-      <path d="M38 50 C 44 28, 57 20, 70 20 C 83 20, 96 28, 102 50" fill="none" stroke={frente ? `url(#${id("cuero")})` : "#161a21"} strokeWidth="10" strokeLinecap="round" />
-      {frente && <path d="M40 48 C 46 29, 58 23, 70 23 C 82 23, 94 29, 100 48" fill="none" stroke="#5a6170" strokeWidth=".9" strokeDasharray="2 2.5" opacity=".9" />}
-      {/* deslizadores */}
-      <rect x="20.5" y="80" width="11" height="20" rx="3.5" fill={metal} />
-      <rect x="108.5" y="80" width="11" height="20" rx="3.5" fill={metal} />
-      {/* horquillas */}
-      <path d="M12 104 Q 26 94 40 104" fill="none" stroke={frente ? "#3d4656" : "#1c222c"} strokeWidth="4" strokeLinecap="round" />
-      <path d="M100 104 Q 114 94 128 104" fill="none" stroke={frente ? "#3d4656" : "#1c222c"} strokeWidth="4" strokeLinecap="round" />
-      {/* copas */}
-      <ellipse cx="26" cy="118" rx="19" ry="26" fill={casco} stroke={frente ? "#05070a" : "#070a10"} strokeWidth="1.5" />
-      <ellipse cx="114" cy="118" rx="19" ry="26" fill={casco} stroke={frente ? "#05070a" : "#070a10"} strokeWidth="1.5" />
-      {frente && <>
-        {/* aro celeste de la marca + brillo */}
-        <ellipse cx="26" cy="118" rx="12.5" ry="18" fill="none" stroke="#1EB6FF" strokeWidth="1.8" opacity=".9" />
-        <ellipse cx="114" cy="118" rx="12.5" ry="18" fill="none" stroke="#1EB6FF" strokeWidth="1.8" opacity=".9" />
-        <ellipse cx="20" cy="106" rx="5" ry="8" fill="#fff" opacity=".22" />
-        <ellipse cx="108" cy="106" rx="5" ry="8" fill="#fff" opacity=".22" />
-        <circle cx="26" cy="118" r="2.2" fill="#1EB6FF" />
-        <circle cx="114" cy="118" r="2.2" fill="#1EB6FF" />
-        {/* brillo en la vincha */}
-        <path d="M34 40 C 42 22, 56 14, 70 13" fill="none" stroke="#fff" strokeWidth="1.6" opacity=".55" strokeLinecap="round" />
-      </>}
-    </svg>
-  );
-};
 
 const MarcaCSS = ({ alto }) => {
   // Espesor: capas apiladas entre el frente y el dorso; se ven cuando el cartel gira de costado.
   const canto = [...Array(GROSOR - 1)].map((_, i) => <div key={i} className="canto" style={{ transform: `translateZ(${GROSOR / 2 - 1 - i}px)` }} />);
-  const texto = <span>TECNO<i>riv</i></span>;
+  const texto = <span>TECNO <i>riv</i></span>;
   return (
     <div className="tr-marca" style={alto ? { height: alto } : undefined} aria-label="TECNOriv">
       <style>{CSS_MARCA}</style>
@@ -182,10 +125,6 @@ const MarcaCSS = ({ alto }) => {
           {canto}
           <div className="cara frente">{texto}</div>
           <div className="cara dorso">{texto}</div>
-          <div className="tr-auri">
-            {[...Array(CAPAS_AURI)].map((_, i) => <Auricular key={i} z={-CAPAS_AURI + i} frente={false} />)}
-            <Auricular z={0} frente />
-          </div>
         </div>
       </div>
     </div>

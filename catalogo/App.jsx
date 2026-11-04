@@ -52,10 +52,16 @@ const Foto = ({ p, alto }) => (
   </div>
 );
 
-const Precio = ({ p, grande }) => (
+const Precio = ({ p, grande, descEfectivo }) => (
   <div>
     {p.precio_anterior && <div style={{ color: "#6b7280", fontSize: grande ? "15px" : "12px", textDecoration: "line-through" }}>{fmt(p.precio_anterior)}</div>}
     <div style={{ fontSize: grande ? "30px" : "19px", fontWeight: 800, letterSpacing: "-0.02em", color: "#fff" }}>{fmt(p.precio)}</div>
+    {descEfectivo > 0 && p.precio_efectivo < p.precio && (
+      <div style={{ marginTop: grande ? "6px" : "4px", display: "inline-flex", flexDirection: "column", background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.35)", borderRadius: "8px", padding: grande ? "6px 10px" : "4px 7px" }}>
+        <span style={{ color: "#34d399", fontSize: grande ? "17px" : "13px", fontWeight: 800, letterSpacing: "-0.01em" }}>{fmt(p.precio_efectivo)}</span>
+        <span style={{ color: "#6ee7b7", fontSize: grande ? "12px" : "10px", fontWeight: 600 }}>💵 {descEfectivo}% OFF en efectivo</span>
+      </div>
+    )}
     {p.cuotas > 0 && <div style={{ color: "#10b981", fontSize: grande ? "14px" : "11px", fontWeight: 700 }}>{p.cuotas} cuotas sin interés</div>}
   </div>
 );
@@ -109,6 +115,8 @@ export default function App() {
     .filter(p => !buscar || (p.nombre + " " + p.descripcion + " " + p.categoria).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").includes(buscar.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")));
   const items = Object.entries(carrito).map(([id, n]) => ({ p: productos.find(x => String(x.id) === id), n })).filter(x => x.p);
   const total = items.reduce((a, x) => a + x.p.precio * x.n, 0);
+  const totalEfectivo = items.reduce((a, x) => a + (x.p.precio_efectivo ?? x.p.precio) * x.n, 0);
+  const descEf = datos?.negocio?.descuento_efectivo || 0;
   const unidades = items.reduce((a, x) => a + x.n, 0);
   const poner = (id, n) => setCarrito(c => { const k = String(id); const o = { ...c }; if (n <= 0) delete o[k]; else o[k] = Math.min(n, 20); return o; });
   const wa = datos?.negocio?.wa;
@@ -118,7 +126,7 @@ export default function App() {
     "",
     ...items.map(x => `• ${x.n > 1 ? x.n + "x " : ""}${x.p.nombre} — ${fmt(x.p.precio * x.n)}`),
     "",
-    `Total: ${fmt(total)}`,
+    `Total: ${fmt(total)}${descEf && totalEfectivo < total ? ` (en efectivo: ${fmt(totalEfectivo)}, ${descEf}% OFF)` : ""}`,
     "¿Me confirman disponibilidad y cómo seguimos?",
   ].join("\n");
   const mensajeProducto = (p) => `¡Hola Tecno Riv! 👋 Me interesa el ${p.nombre} (${fmt(p.precio)}) que vi en el catálogo. ¿Está disponible?`;
@@ -161,7 +169,7 @@ export default function App() {
 
         {/* Beneficios */}
         <div className="tr-beneficios">
-          {[["camion", "Envío gratis", "Dentro de Río Cuarto"], ["escudo", negocio.garantia, "En todos los productos"], ["tarjeta", "Todos los medios de pago", "Efectivo, transferencia, MP y tarjetas"]].map(([ic, t, s]) => (
+          {[["camion", "Envío gratis", "Dentro de Río Cuarto"], ["escudo", negocio.garantia, "En todos los productos"], ["tarjeta", negocio.descuento_efectivo ? `${negocio.descuento_efectivo}% OFF en efectivo` : "Todos los medios de pago", negocio.descuento_efectivo ? "También transferencia, MP y tarjetas" : "Efectivo, transferencia, MP y tarjetas"]].map(([ic, t, s]) => (
             <div key={t} style={{ ...card, padding: "12px 14px", display: "flex", gap: "12px", alignItems: "center", flexShrink: 0 }}>
               <span style={{ color: "#1EB6FF", flexShrink: 0 }}><Icon name={ic} size={20} /></span>
               <div><div style={{ fontWeight: 700, fontSize: "13px" }}>{t}</div><div style={{ color: "#6b7280", fontSize: "12px" }}>{s}</div></div>
@@ -201,7 +209,7 @@ export default function App() {
                 <div key={x.id} className="tr-lift" style={{ ...card, padding: "8px", display: "flex", flexDirection: "column", gap: "8px", opacity: x.estado === "agotado" ? 0.75 : 1 }}>
                   <button onClick={() => setAbierto(x.id)} style={{ all: "unset", cursor: "pointer", display: "block" }}><Foto p={x} /></button>
                   <button onClick={() => setAbierto(x.id)} style={{ all: "unset", cursor: "pointer", fontSize: "13px", fontWeight: 700, lineHeight: 1.3, minHeight: "34px", padding: "0 4px" }}>{x.nombre}</button>
-                  <div style={{ padding: "0 4px", marginTop: "auto" }}><Precio p={x} /></div>
+                  <div style={{ padding: "0 4px", marginTop: "auto" }}><Precio p={x} descEfectivo={descEf} /></div>
                   {x.estado === "agotado"
                     ? <Btn href={linkWa(`¡Hola Tecno Riv! 👋 ¿Cuándo vuelve a entrar el ${x.nombre}?`)} variant="ghost" style={{ padding: "9px", fontSize: "12px" }}>Avisame cuando entre</Btn>
                     : n ? <div style={{ display: "flex", justifyContent: "center" }}><Cantidad n={n} onMas={() => poner(x.id, n + 1)} onMenos={() => poner(x.id, n - 1)} /></div>
@@ -242,7 +250,7 @@ export default function App() {
           <Foto p={p} />
           <div style={{ color: "#1EB6FF", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", margin: "14px 0 4px" }}>{p.categoria}</div>
           <h2 style={{ margin: "0 0 10px", fontSize: "22px", letterSpacing: "-0.02em" }}>{p.nombre}</h2>
-          <Precio p={p} grande />
+          <Precio p={p} grande descEfectivo={descEf} />
           {p.descripcion && <p style={{ color: "#9ca3af", fontSize: "14px", lineHeight: 1.6, margin: "12px 0 0" }}>{p.descripcion}</p>}
           {p.regalo && promo?.regalo && <p style={{ color: "#93c5fd", fontSize: "13px", margin: "10px 0 0" }}>🎁 Te llevás de regalo: {promo.regalo.nombre} (hasta agotar stock).</p>}
           <div style={{ display: "flex", gap: "8px", marginTop: "16px", flexWrap: "wrap" }}>
@@ -271,10 +279,16 @@ export default function App() {
                 <Cantidad n={n} onMas={() => poner(x.id, n + 1)} onMenos={() => poner(x.id, n - 1)} />
               </div>
             ))}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", margin: "14px 0" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", margin: "14px 0 4px" }}>
               <span style={{ color: "#9ca3af" }}>Total</span>
               <span style={{ fontSize: "26px", fontWeight: 800 }}>{fmt(total)}</span>
             </div>
+            {descEf > 0 && totalEfectivo < total && (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "14px", color: "#34d399" }}>
+                <span style={{ fontSize: "13px", fontWeight: 600 }}>💵 Pagando en efectivo ({descEf}% OFF)</span>
+                <span style={{ fontSize: "20px", fontWeight: 800 }}>{fmt(totalEfectivo)}</span>
+              </div>
+            )}
             <div style={{ color: "#6b7280", fontSize: "12px", marginBottom: "12px" }}>{negocio.envios}. Pagás cuando recibís.</div>
             <Btn href={linkWa(mensajePedido())} style={{ width: "100%", boxSizing: "border-box", ...verde, padding: "15px" }}><Icon name="wa" size={18} /> Pedir por WhatsApp</Btn>
             <button onClick={() => { setCarrito({}); setVerCarrito(false); }} style={{ all: "unset", cursor: "pointer", display: "block", margin: "12px auto 0", color: "#6b7280", fontSize: "12px" }}>Vaciar pedido</button>

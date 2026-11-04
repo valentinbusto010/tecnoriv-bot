@@ -8,6 +8,7 @@ Sistema para vender más con menos trabajo manual:
 | **Responde consultas de Marketplace**: pegás el mensaje del cliente y te da la respuesta lista para copiar | Panel → pestaña 2 |
 | **Atiende WhatsApp solo, 24/7**: responde, recuerda la charla, cierra la venta y te avisa | Automático |
 | **Sistema de gestión**: clientes, pedidos, stock y finanzas. Las ventas del bot entran solas | `/gestion` |
+| **Catálogo para clientes**: productos y precios en vivo, el cliente arma su pedido y lo manda por WhatsApp | `/catalogo` (público) |
 | **Estudio de contenido**: carruseles, posts, historias y Marketplace con tu marca. Plan semanal, calendario y publicación en Instagram | `/contenido` |
 
 > **Importante sobre Marketplace:** Facebook no permite que un programa publique ni chatee solo en Marketplace. Si se usa un bot para eso, te bloquean la cuenta. Por eso el sistema te deja **todo listo** (imagen, título, descripción y respuestas) y vos solo copiás y pegás: 1 minuto por producto. En **WhatsApp** sí está permitido, y ahí el bot trabaja 100% solo.
@@ -46,6 +47,13 @@ Entrá a `https://TU-SERVIDOR/gestion` (misma contraseña que el panel). Funcion
 **Instagram desde el sistema:** Stock → **Publicar** → Instagram → "Generar contenido". Arma 3 historias, un carrusel con tus productos y el caption, con las fotos reales y la promo vigente. Descargás todo desde el celu y subís.
 
 **Marketplace desde el sistema:** en Stock tocá el 📣 de un producto (o el botón **Marketplace**) y se genera la imagen con tu marca, el título y la descripción usando la foto del producto. Quedan guardadas: desde el celu descargás la imagen y copiás los textos para publicar.
+
+### Catálogo para clientes (`/catalogo`)
+Página pública (sin contraseña) para compartir en la bio de Instagram, estados de WhatsApp y Marketplace: `https://TU-SERVIDOR/catalogo`.
+- Lee la misma tabla `productos` que el bot y `/gestion`: si cambiás un precio, el stock o una foto, el catálogo se actualiza solo (cada 60 s y al volver a la pestaña).
+- Muestra nombre, foto, precio (con la promo aplicada si hay), cuotas y estado: disponible, **últimas unidades** (stock ≤ alerta) o **agotado**. **Nunca** muestra costos, márgenes ni el stock exacto. Los productos ocultos al bot (`activo = false`) no aparecen.
+- El cliente agrega productos y toca **Pedir por WhatsApp**: se abre el chat con la lista, cantidades y total. Número: `whatsapp` de `src/negocio.js`, o `WHATSAPP_PEDIDOS` en Render si querés que los pedidos vayan a otro número (por ejemplo, al del bot).
+- Para cambiarlo: `catalogo/App.jsx` y después `node catalogo/build.mjs`.
 
 ### Estudio de contenido (`/contenido`)
 App aparte (misma contraseña) para hacer y publicar todo el contenido de Instagram y Marketplace con los colores y el formato de @tecno_riv.
@@ -96,6 +104,7 @@ Para probar en tu compu: `npm install`, copiá `.env.example` como `.env`, compl
 - `gestion/App.jsx` → el sistema de gestión (si lo cambiás: `npm i --no-save esbuild react@18 react-dom@18 && node gestion/build.mjs`)
 - `supabase.sql` + `supabase-gestion.sql` + `supabase-margen.sql` + `supabase-publicaciones.sql` + `supabase-instagram.sql` + `supabase-contenido.sql` → tablas de la base de datos
 - `src/promo.js` → promo vigente · `src/instagram.js` → historias y carrusel
+- `src/catalogo.js` → API pública del catálogo · `catalogo/App.jsx` → la página del catálogo
 - `src/estudio.js` → diseño de carruseles, posts e historias + plan semanal · `src/contenido.js` → API del estudio, publicación en Instagram y programador
 - `contenido/App.jsx` → el estudio de contenido (si lo cambiás: `npm i --no-save esbuild react@18 react-dom@18 && node contenido/build.mjs`)
 - `gestion/iconos.js` → genera los íconos de la app

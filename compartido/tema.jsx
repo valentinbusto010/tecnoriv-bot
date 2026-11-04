@@ -127,3 +127,13 @@ export const Marca3D = ({ alto }) => {
     </div>
   );
 };
+
+// Logo TECNO riv en chico (barras superiores): mismo cartel de vidrio con borde y brillo azul.
+export const MiniLogo = ({ alto = 30 }) => (
+  <span aria-label="TECNO riv" style={{ display: "inline-flex", alignItems: "center", height: alto, padding: `0 ${Math.round(alto * 0.36)}px`, boxSizing: "border-box", borderRadius: Math.round(alto * 0.3), flexShrink: 0,
+    background: "linear-gradient(180deg,#141c2c 0%,#070b14 55%,#04070d 100%)", border: "1.5px solid rgba(150,205,255,.8)",
+    boxShadow: "0 0 10px rgba(30,150,255,.6), 0 0 22px rgba(30,120,255,.3), inset 0 0 8px rgba(80,170,255,.3)",
+    fontFamily: "'Michroma','Space Grotesk',sans-serif", fontSize: Math.round(alto * 0.4), lineHeight: 1, whiteSpace: "nowrap", color: "#fff", textShadow: "0 0 4px rgba(255,255,255,.5), 0 0 10px rgba(120,190,255,.5)" }}>
+    TECNO<span style={{ color: "#1EB6FF", marginLeft: ".22em", textShadow: "0 0 5px rgba(30,182,255,.7), 0 0 10px rgba(30,182,255,.5)" }}>riv</span>
+  </span>
+);

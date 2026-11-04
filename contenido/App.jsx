@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Fondo, Marca3D, card, fieldSt, chipSt, btnFondo } from "../compartido/tema.jsx";
+import { Fondo, Marca3D, MiniLogo, card, fieldSt, chipSt, btnFondo } from "../compartido/tema.jsx";
 
 // Estudio de contenido Tecno Riv: crear, guardar, programar y publicar
 // carruseles, posts, historias y publicaciones de Marketplace.
@@ -639,8 +639,8 @@ export default function App() {
     <Shell>
       <div className="tr-glass-bar" style={{ borderBottom: "1px solid", padding: "0 16px", height: "58px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 100 }}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
-          <div style={{ width: "30px", height: "30px", background: "linear-gradient(135deg,#1a7bff,#0047c2)", borderRadius: "9px", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: "12px", boxShadow: "0 6px 16px -4px rgba(0,102,255,0.7), inset 0 1px 0 rgba(255,255,255,0.25)" }}>TR</div>
-          <span style={{ fontWeight: 700, fontSize: "15px", letterSpacing: "-0.02em" }}>Contenido</span>
+          <MiniLogo alto={30} />
+          <span className="tr-hide-sm" style={{ fontWeight: 600, fontSize: "13px", color: "#9ca3af" }}>Contenido</span>
           <span title={datos.instagram ? "Instagram conectado: publica solo" : "Instagram en modo manual"} style={{ color: datos.instagram ? "#10b981" : datos.instagramError ? "#ef4444" : "#6b7280", fontSize: "11px", whiteSpace: "nowrap" }}>● {datos.instagram ? (datos.instagramUsuario ? `@${datos.instagramUsuario}` : "IG auto") : datos.instagramError ? "IG con error" : "IG manual"}</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>

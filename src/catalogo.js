@@ -3,7 +3,7 @@
 // Solo expone lo que el cliente necesita: nunca costos, márgenes ni el stock exacto.
 const { supabase } = require('./datos');
 const negocio = require('./negocio');
-const { promoVigente, precioPromo, fechaCorta } = require('./promo');
+const { promoVigente, precioPromo, precioEfectivo, fechaCorta } = require('./promo');
 
 // "358 576-4330" -> "5493585764330" (formato de wa.me para celulares de Argentina)
 function waInternacional(numero) {
@@ -35,6 +35,7 @@ async function armarCatalogo() {
         categoria: p.categoria || 'Otros',
         precio: final,
         precio_anterior: final < precio ? precio : null,
+        precio_efectivo: precioEfectivo(final),
         cuotas: Number(p.cuotas_sin_interes) || 0,
         descripcion: p.descripcion || '',
         imagen: p.imagen_url || null,
@@ -62,6 +63,7 @@ async function armarCatalogo() {
       garantia: negocio.garantia,
       pagos: negocio.mediosDePago,
       horario: negocio.horario,
+      descuento_efectivo: Number(negocio.descuentoEfectivo) || 0,
     },
     promo: promo ? { descuento: promo.descuento, hasta: fechaCorta(promo.hasta), regalo } : null,
     productos,

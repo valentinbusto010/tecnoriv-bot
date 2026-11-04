@@ -3,7 +3,7 @@
 const express = require('express');
 const axios = require('axios');
 const { supabase } = require('./datos');
-const { promoVigente, precioPromo, invalidarAjustes } = require('./promo');
+const { promoVigente, precioPromo, precioEfectivo, invalidarAjustes } = require('./promo');
 // (instagram.js se carga recién al generar contenido)
 
 const CATEGORIAS_GASTO = ['Stock', 'Marketing', 'Envíos', 'Operativo', 'Impuestos', 'Otro'];
@@ -122,6 +122,10 @@ async function registrarVenta(telefono, resumen, nombrePerfil) {
     } else {
       v.monto = precioPromo(v.producto.precio, promo) * v.cantidad;
     }
+  }
+  // Pago en efectivo: se registra con el descuento por efectivo (el regalo sigue en $0).
+  if (v.producto && !v.regalo && /efectivo/i.test(v.pago || '')) {
+    v.monto = precioEfectivo(v.monto / v.cantidad) * v.cantidad;
   }
 
   // Evita cargar dos veces la misma venta si el cliente vuelve a confirmar.

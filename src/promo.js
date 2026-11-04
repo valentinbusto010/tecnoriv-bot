@@ -1,6 +1,7 @@
 // Promo vigente (descuento con fecha límite y regalo), configurable desde /gestion → Stock → ⚙️.
 // La usan el bot (cotiza el precio promo), el registro de ventas y el contenido de Instagram.
 const { supabase } = require('./datos');
+const negocio = require('./negocio');
 
 const hoyAR = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' });
 
@@ -34,7 +35,13 @@ async function promoVigente() {
 const precioPromo = (precio, promo) =>
   promo && promo.descuento ? Math.round(Number(precio) * (1 - promo.descuento / 100)) : Number(precio);
 
+// Precio pagando en efectivo (descuento de negocio.descuentoEfectivo sobre el precio dado). Sin descuento, igual.
+const precioEfectivo = (precio) => {
+  const d = Number(negocio.descuentoEfectivo) || 0;
+  return d > 0 ? Math.round(Number(precio) * (1 - d / 100)) : Number(precio);
+};
+
 // "2026-10-31" -> "31/10"
 const fechaCorta = (f) => (f ? `${f.slice(8, 10)}/${f.slice(5, 7)}` : '');
 
-module.exports = { hoyAR, leerAjustes, invalidarAjustes, promoDe, promoVigente, precioPromo, fechaCorta };
+module.exports = { hoyAR, leerAjustes, invalidarAjustes, promoDe, promoVigente, precioPromo, precioEfectivo, fechaCorta };

@@ -85,42 +85,83 @@ export const Escena3D = ({ imagenes = [], alto = 260, etiquetas = ["IG", "TR", "
   );
 };
 
-// ─── MARCA 3D: el cartel "TECNO" como objeto 3D con espesor que gira ───
-// Vector puro (se ve nítido en cualquier pantalla). Fuente Michroma, cargada en contenido.html.
+// ─── MARCA 3D: el cartel "TECNOriv" como objeto 3D que gira, con auriculares de vincha colgando ───
+// Vector puro (se ve nítido en cualquier pantalla). Fuente Michroma, cargada en el .html de cada app.
 const GROSOR = 22; // px de espesor del cartel
+const CAPAS_AURI = 10; // capas del auricular (le dan volumen al girar)
 const CSS_MARCA = `
-.tr-marca{position:relative;height:300px;perspective:1100px;display:flex;align-items:center;justify-content:center}
-.tr-marca .tr-glow{bottom:40px;width:300px;margin-left:-150px;height:40px}
-.tr-cartel-wrap{position:relative;width:340px;height:92px;transform-style:preserve-3d;animation:trBob 6s ease-in-out infinite}
+.tr-marca{position:relative;height:320px;perspective:1200px;display:flex;align-items:center;justify-content:center}
+.tr-marca .tr-glow{bottom:44px;width:340px;margin-left:-170px;height:40px}
+.tr-cartel-wrap{position:relative;width:440px;height:92px;transform-style:preserve-3d;animation:trBob 6s ease-in-out infinite}
 .tr-cartel{position:absolute;inset:0;transform-style:preserve-3d;animation:trGiro 8s linear infinite;will-change:transform}
-.tr-cartel .cara{position:absolute;inset:0;border-radius:12px;display:flex;align-items:center;justify-content:center;backface-visibility:hidden;-webkit-backface-visibility:hidden;overflow:hidden;
+.tr-cartel .cara{position:absolute;inset:0;border-radius:12px;display:flex;align-items:center;justify-content:center;padding-right:78px;box-sizing:border-box;backface-visibility:hidden;-webkit-backface-visibility:hidden;overflow:hidden;
   background:linear-gradient(180deg,#141c2c 0%,#070b14 55%,#04070d 100%);
   border:2px solid rgba(150,205,255,.75);
   box-shadow:0 0 18px rgba(30,150,255,.75),0 0 46px rgba(30,120,255,.45),inset 0 0 14px rgba(80,170,255,.35),inset 0 1px 0 rgba(255,255,255,.35)}
-.tr-cartel .cara span{font-family:'Michroma','Space Grotesk',sans-serif;font-size:50px;line-height:1;letter-spacing:.05em;color:#fff;padding-left:.05em;
+.tr-cartel .cara span{font-family:'Michroma','Space Grotesk',sans-serif;font-size:44px;line-height:1;letter-spacing:.04em;color:#fff;white-space:nowrap;
   text-shadow:0 0 6px rgba(255,255,255,.55),0 0 18px rgba(120,190,255,.55)}
+.tr-cartel .cara span i{font-style:normal;color:#1EB6FF;text-shadow:0 0 6px rgba(30,182,255,.7),0 0 18px rgba(30,182,255,.6)}
 .tr-cartel .cara::after{content:"";position:absolute;inset:-2px;background:linear-gradient(105deg,transparent 35%,rgba(255,255,255,.38) 48%,transparent 60%);transform:translateX(-130%);animation:trSheen 4s ease-in-out infinite}
 .tr-cartel .frente{transform:translateZ(${GROSOR / 2}px)}
-.tr-cartel .dorso{transform:rotateY(180deg) translateZ(${GROSOR / 2}px)}
+.tr-cartel .dorso{transform:rotateY(180deg) translateZ(${GROSOR / 2}px);padding-right:0;padding-left:78px}
 .tr-cartel .canto{position:absolute;inset:0;border-radius:12px;background:#0a1730;border:2px solid rgba(70,140,255,.55)}
+/* Auriculares: enganchados en la esquina de arriba a la derecha, delante del cartel, balanceándose */
+.tr-auri{position:absolute;width:92px;height:100px;right:-34px;top:-20px;transform-style:preserve-3d;transform-origin:50% 6%;animation:trColgar 3.2s ease-in-out infinite}
+.tr-auri.atras{animation-name:trColgarAtras}
+.tr-auri svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+@keyframes trColgar{0%,100%{transform:translateZ(${GROSOR / 2 + 10}px) rotateZ(20deg)}50%{transform:translateZ(${GROSOR / 2 + 10}px) rotateZ(30deg)}}
+@keyframes trColgarAtras{0%,100%{transform:translateZ(-${GROSOR / 2 + 10}px) rotateY(180deg) rotateZ(-20deg)}50%{transform:translateZ(-${GROSOR / 2 + 10}px) rotateY(180deg) rotateZ(-30deg)}}
 @keyframes trGiro{from{transform:rotateX(10deg) rotateY(0deg)}to{transform:rotateX(10deg) rotateY(360deg)}}
 @keyframes trSheen{0%,55%{transform:translateX(-130%)}80%,100%{transform:translateX(130%)}}
-@media (max-width:620px){.tr-marca{height:200px}.tr-cartel-wrap{width:270px;height:74px}.tr-cartel .cara span{font-size:39px}.tr-marca .tr-glow{bottom:28px;width:240px;margin-left:-120px}}
-@media (prefers-reduced-motion:reduce){.tr-cartel{animation:trGiro 15s linear infinite!important}.tr-cartel-wrap,.tr-cartel .cara::after{animation:none!important}}
+@media (max-width:620px){.tr-marca{height:230px}.tr-cartel-wrap{width:300px;height:66px}.tr-cartel .cara{padding-right:52px}.tr-cartel .dorso{padding-right:0;padding-left:52px}.tr-cartel .cara span{font-size:28px}.tr-auri{width:64px;height:70px;right:-22px;top:-14px}.tr-marca .tr-glow{bottom:34px;width:260px;margin-left:-130px}}
+@media (prefers-reduced-motion:reduce){.tr-cartel{animation:trGiro 15s linear infinite!important}.tr-cartel-wrap,.tr-cartel .cara::after,.tr-auri{animation:none!important}}
 `;
+
+// Silueta del auricular de vincha. "frente" = capa de adelante con brillo; las demás forman el volumen.
+const Auricular = ({ frente, z }) => (
+  <svg viewBox="0 0 120 130" style={{ transform: `translateZ(${z}px)` }} aria-hidden="true">
+    {frente && (
+      <defs>
+        <linearGradient id="trVincha" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#ffffff" /><stop offset=".5" stopColor="#b9c7da" /><stop offset="1" stopColor="#7d8fa8" /></linearGradient>
+        <radialGradient id="trCopa" cx=".35" cy=".3" r=".8"><stop offset="0" stopColor="#2a3a5a" /><stop offset=".6" stopColor="#0c1424" /><stop offset="1" stopColor="#04070d" /></radialGradient>
+      </defs>
+    )}
+    {/* vincha */}
+    <path d="M22 80 C 18 30, 42 8, 60 8 C 78 8, 102 30, 98 80" fill="none" stroke={frente ? "url(#trVincha)" : "#3b4a63"} strokeWidth="10" strokeLinecap="round" />
+    {frente && <path d="M30 58 C 32 30, 46 18, 60 18 C 74 18, 88 30, 90 58" fill="none" stroke="#0b1424" strokeWidth="5" strokeLinecap="round" opacity=".55" />}
+    {/* brazos */}
+    <rect x="17" y="64" width="10" height="20" rx="4" fill={frente ? "#9fb1c8" : "#34425a"} />
+    <rect x="93" y="64" width="10" height="20" rx="4" fill={frente ? "#9fb1c8" : "#34425a"} />
+    {/* copas */}
+    <rect x="4" y="78" width="34" height="48" rx="15" fill={frente ? "url(#trCopa)" : "#0a1428"} stroke={frente ? "#1EB6FF" : "#173a75"} strokeWidth="3" />
+    <rect x="82" y="78" width="34" height="48" rx="15" fill={frente ? "url(#trCopa)" : "#0a1428"} stroke={frente ? "#1EB6FF" : "#173a75"} strokeWidth="3" />
+    {frente && <>
+      <ellipse cx="21" cy="102" rx="7" ry="11" fill="none" stroke="#1EB6FF" strokeWidth="2" opacity=".8" />
+      <ellipse cx="99" cy="102" rx="7" ry="11" fill="none" stroke="#1EB6FF" strokeWidth="2" opacity=".8" />
+      <path d="M12 86 Q 16 82 22 82" stroke="#fff" strokeWidth="2" fill="none" opacity=".5" strokeLinecap="round" />
+    </>}
+  </svg>
+);
 
 export const Marca3D = ({ alto }) => {
   // Espesor: capas apiladas entre el frente y el dorso; se ven cuando el cartel gira de costado.
   const canto = [...Array(GROSOR - 1)].map((_, i) => <div key={i} className="canto" style={{ transform: `translateZ(${GROSOR / 2 - 1 - i}px)` }} />);
+  const texto = <span>TECNO<i>riv</i></span>;
   return (
-    <div className="tr-marca" style={alto ? { height: alto } : undefined} aria-label="Tecno">
+    <div className="tr-marca" style={alto ? { height: alto } : undefined} aria-label="TECNOriv">
       <style>{CSS_MARCA}</style>
       <div className="tr-glow" />
       <div className="tr-cartel-wrap">
         <div className="tr-cartel">
           {canto}
-          <div className="cara frente"><span>TECNO</span></div>
-          <div className="cara dorso"><span>TECNO</span></div>
+          <div className="cara frente">{texto}</div>
+          <div className="cara dorso">{texto}</div>
+          {["", "atras"].map(lado => (
+            <div key={lado} className={`tr-auri ${lado}`}>
+              {[...Array(CAPAS_AURI)].map((_, i) => <Auricular key={i} z={-i} frente={false} />)}
+              <Auricular z={1} frente />
+            </div>
+          ))}
         </div>
       </div>
     </div>

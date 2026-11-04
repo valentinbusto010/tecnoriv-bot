@@ -130,10 +130,17 @@ async function publicarEnInstagram(pieza) {
 }
 
 // ───────── programador ─────────
-// Cada 5 minutos: publica lo programado (si Instagram está conectado) o te avisa por WhatsApp.
+// Cada 1 minuto: publica lo programado (si Instagram está conectado) o te avisa por WhatsApp.
+// "ocupado" evita que una publicación lenta se superponga con la siguiente revisión y salga dos veces.
+let ocupado = false;
 function iniciarProgramador(avisarDueno) {
   if (!supabase) return;
   const revisar = async () => {
+    if (ocupado) return;
+    ocupado = true;
+    try { await revisarAhora(); } finally { ocupado = false; }
+  };
+  const revisarAhora = async () => {
     const { data, error } = await supabase
       .from('piezas')
       .select('id, formato, titulo, caption, programado_para, avisado')
@@ -144,6 +151,9 @@ function iniciarProgramador(avisarDueno) {
     for (const p of data) {
       const automatica = p.formato !== 'marketplace' && (await igListo());
       if (automatica) {
+        // Se marca antes de publicar: si el servidor se reinicia a mitad, no queda en "programado" y no se repite.
+        const { data: tomada } = await supabase.from('piezas').update({ estado: 'borrador', error: 'Publicando…' }).eq('id', p.id).eq('estado', 'programado').select('id');
+        if (!tomada?.length) continue;
         try {
           await publicarEnInstagram(p);
           await avisarDueno(`✅ Publicado en Instagram: ${p.titulo}`);
@@ -158,7 +168,7 @@ function iniciarProgramador(avisarDueno) {
       }
     }
   };
-  setInterval(() => revisar().catch((e) => console.error('Programador de contenido:', e.message)), 5 * 60 * 1000);
+  setInterval(() => revisar().catch((e) => console.error('Programador de contenido:', e.message)), 60 * 1000);
   setTimeout(() => revisar().catch(() => {}), 20000);
 }
 

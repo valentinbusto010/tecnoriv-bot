@@ -1,5 +1,3 @@
-import { useEffect, useRef, useState } from "react";
-import { montarMarcaGL } from "./marcaGL.js";
 // Estilo visual compartido de Tecno Riv (/gestion y /contenido):
 // fondo minimalista con grilla y luces, tarjetas de vidrio y escena 3D animada.
 // Si lo cambiás, rearmá las dos apps: node gestion/build.mjs && node contenido/build.mjs
@@ -87,69 +85,45 @@ export const Escena3D = ({ imagenes = [], alto = 260, etiquetas = ["IG", "TR", "
   );
 };
 
-// ─── MARCA 3D (respaldo sin WebGL): el cartel "TECNO riv" como objeto 3D que gira ───
+// ─── MARCA 3D: el cartel "TECNO riv" como objeto 3D con espesor que gira (el diseño original) ───
 // Vector puro (se ve nítido en cualquier pantalla). Fuente Michroma, cargada en el .html de cada app.
 const GROSOR = 22; // px de espesor del cartel
 const CSS_MARCA = `
-.tr-marca{position:relative;height:320px;perspective:1200px;display:flex;align-items:center;justify-content:center}
-.tr-marca .tr-glow{bottom:46px;width:300px;margin-left:-150px;height:40px}
-.tr-cartel-wrap{position:relative;width:380px;height:104px;transform-style:preserve-3d;animation:trBob 6s ease-in-out infinite}
+.tr-marca{position:relative;height:300px;perspective:1100px;display:flex;align-items:center;justify-content:center}
+.tr-marca .tr-glow{bottom:40px;width:340px;margin-left:-170px;height:40px}
+.tr-cartel-wrap{position:relative;width:420px;height:92px;transform-style:preserve-3d;animation:trBob 6s ease-in-out infinite}
 .tr-cartel{position:absolute;inset:0;transform-style:preserve-3d;animation:trGiro 8s linear infinite;will-change:transform}
-.tr-cartel .cara{position:absolute;inset:0;border-radius:14px;display:flex;align-items:center;justify-content:center;box-sizing:border-box;backface-visibility:hidden;-webkit-backface-visibility:hidden;overflow:hidden;
+.tr-cartel .cara{position:absolute;inset:0;border-radius:12px;display:flex;align-items:center;justify-content:center;backface-visibility:hidden;-webkit-backface-visibility:hidden;overflow:hidden;
   background:linear-gradient(180deg,#141c2c 0%,#070b14 55%,#04070d 100%);
   border:2px solid rgba(150,205,255,.75);
   box-shadow:0 0 18px rgba(30,150,255,.75),0 0 46px rgba(30,120,255,.45),inset 0 0 14px rgba(80,170,255,.35),inset 0 1px 0 rgba(255,255,255,.35)}
-.tr-cartel .cara span{font-family:'Michroma','Space Grotesk',sans-serif;font-size:40px;line-height:1;letter-spacing:0;color:#fff;white-space:nowrap;
+.tr-cartel .cara span{font-family:'Michroma','Space Grotesk',sans-serif;font-size:46px;line-height:1;letter-spacing:.05em;color:#fff;padding-left:.05em;white-space:nowrap;
   text-shadow:0 0 6px rgba(255,255,255,.55),0 0 18px rgba(120,190,255,.55)}
-.tr-cartel .cara span i{font-style:normal;color:#1EB6FF;text-shadow:0 0 6px rgba(30,182,255,.7),0 0 18px rgba(30,182,255,.6)}
+.tr-cartel .cara span i{font-style:normal;color:#1EB6FF;margin-left:.22em;text-shadow:0 0 6px rgba(30,182,255,.7),0 0 18px rgba(30,182,255,.6)}
 .tr-cartel .cara::after{content:"";position:absolute;inset:-2px;background:linear-gradient(105deg,transparent 35%,rgba(255,255,255,.38) 48%,transparent 60%);transform:translateX(-130%);animation:trSheen 4s ease-in-out infinite}
 .tr-cartel .frente{transform:translateZ(${GROSOR / 2}px)}
 .tr-cartel .dorso{transform:rotateY(180deg) translateZ(${GROSOR / 2}px)}
-.tr-cartel .canto{position:absolute;inset:0;border-radius:14px;background:#0a1730;border:2px solid rgba(70,140,255,.55)}
+.tr-cartel .canto{position:absolute;inset:0;border-radius:12px;background:#0a1730;border:2px solid rgba(70,140,255,.55)}
 @keyframes trGiro{from{transform:rotateX(10deg) rotateY(0deg)}to{transform:rotateX(10deg) rotateY(360deg)}}
 @keyframes trSheen{0%,55%{transform:translateX(-130%)}80%,100%{transform:translateX(130%)}}
-@media (max-width:620px){.tr-marca{height:240px}.tr-cartel-wrap{width:290px;height:80px}.tr-cartel .cara span{font-size:30px}.tr-marca .tr-glow{bottom:36px;width:240px;margin-left:-120px}}
+@media (max-width:620px){.tr-marca{height:200px}.tr-cartel-wrap{width:300px;height:70px}.tr-cartel .cara span{font-size:32px}.tr-marca .tr-glow{bottom:28px;width:240px;margin-left:-120px}}
 @media (prefers-reduced-motion:reduce){.tr-cartel{animation:trGiro 15s linear infinite!important}.tr-cartel-wrap,.tr-cartel .cara::after{animation:none!important}}
 `;
 
-const MarcaCSS = ({ alto }) => {
+export const Marca3D = ({ alto }) => {
   // Espesor: capas apiladas entre el frente y el dorso; se ven cuando el cartel gira de costado.
   const canto = [...Array(GROSOR - 1)].map((_, i) => <div key={i} className="canto" style={{ transform: `translateZ(${GROSOR / 2 - 1 - i}px)` }} />);
-  const texto = <span>TECNO <i>riv</i></span>;
   return (
-    <div className="tr-marca" style={alto ? { height: alto } : undefined} aria-label="TECNOriv">
+    <div className="tr-marca" style={alto ? { height: alto } : undefined} aria-label="TECNO riv">
       <style>{CSS_MARCA}</style>
       <div className="tr-glow" />
       <div className="tr-cartel-wrap">
         <div className="tr-cartel">
           {canto}
-          <div className="cara frente">{texto}</div>
-          <div className="cara dorso">{texto}</div>
+          <div className="cara frente"><span>TECNO<i>riv</i></span></div>
+          <div className="cara dorso"><span>TECNO<i>riv</i></span></div>
         </div>
       </div>
-    </div>
-  );
-};
-
-// Logo 3D real (WebGL). Mientras carga, o si el dispositivo no soporta 3D, se ve la versión CSS.
-export const Marca3D = ({ alto }) => {
-  const ref = useRef(null);
-  const [estado, setEstado] = useState("cargando");
-  useEffect(() => {
-    let limpiar = null, vivo = true;
-    const lento = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-    montarMarcaGL(ref.current, { lento })
-      .then((fn) => { if (vivo) { limpiar = fn; setEstado("ok"); } else fn(); })
-      .catch((e) => { console.warn("Logo 3D no disponible, uso la versión CSS:", e?.message); if (vivo) setEstado("error"); });
-    return () => { vivo = false; limpiar?.(); };
-  }, []);
-  const h = alto || undefined;
-  return (
-    <div className="tr-marca-host" style={h ? { height: h } : undefined}>
-      <style>{`.tr-marca-host{position:relative;height:320px}.tr-marca-gl{position:absolute;inset:0;transition:opacity .5s}
-@media (max-width:620px){.tr-marca-host{height:240px}}`}</style>
-      {estado !== "ok" && <div style={{ position: "absolute", inset: 0 }}><MarcaCSS alto={h} /></div>}
-      <div ref={ref} className="tr-marca-gl" aria-label="TECNOriv" style={{ opacity: estado === "ok" ? 1 : 0 }} />
     </div>
   );
 };

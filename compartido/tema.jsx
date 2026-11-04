@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from "react";
+import { montarMarcaGL } from "./marcaGL.js";
 // Estilo visual compartido de Tecno Riv (/gestion y /contenido):
 // fondo minimalista con grilla y luces, tarjetas de vidrio y escena 3D animada.
 // Si lo cambiás, rearmá las dos apps: node gestion/build.mjs && node contenido/build.mjs
@@ -85,7 +87,7 @@ export const Escena3D = ({ imagenes = [], alto = 260, etiquetas = ["IG", "TR", "
   );
 };
 
-// ─── MARCA 3D: el cartel "TECNOriv" como objeto 3D que gira, con auriculares de vincha colgando ───
+// ─── MARCA 3D (respaldo sin WebGL): el cartel "TECNOriv" como objeto 3D que gira, con auriculares de vincha colgando ───
 // Vector puro (se ve nítido en cualquier pantalla). Fuente Michroma, cargada en el .html de cada app.
 const GROSOR = 22; // px de espesor del cartel
 const CAPAS_AURI = 12; // capas del auricular: le dan volumen al girar
@@ -167,7 +169,7 @@ const Auricular = ({ frente, z }) => {
   );
 };
 
-export const Marca3D = ({ alto }) => {
+const MarcaCSS = ({ alto }) => {
   // Espesor: capas apiladas entre el frente y el dorso; se ven cuando el cartel gira de costado.
   const canto = [...Array(GROSOR - 1)].map((_, i) => <div key={i} className="canto" style={{ transform: `translateZ(${GROSOR / 2 - 1 - i}px)` }} />);
   const texto = <span>TECNO<i>riv</i></span>;
@@ -186,6 +188,29 @@ export const Marca3D = ({ alto }) => {
           </div>
         </div>
       </div>
+    </div>
+  );
+};
+
+// Logo 3D real (WebGL). Mientras carga, o si el dispositivo no soporta 3D, se ve la versión CSS.
+export const Marca3D = ({ alto }) => {
+  const ref = useRef(null);
+  const [estado, setEstado] = useState("cargando");
+  useEffect(() => {
+    let limpiar = null, vivo = true;
+    const lento = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    montarMarcaGL(ref.current, { lento })
+      .then((fn) => { if (vivo) { limpiar = fn; setEstado("ok"); } else fn(); })
+      .catch((e) => { console.warn("Logo 3D no disponible, uso la versión CSS:", e?.message); if (vivo) setEstado("error"); });
+    return () => { vivo = false; limpiar?.(); };
+  }, []);
+  const h = alto || undefined;
+  return (
+    <div className="tr-marca-host" style={h ? { height: h } : undefined}>
+      <style>{`.tr-marca-host{position:relative;height:320px}.tr-marca-gl{position:absolute;inset:0;transition:opacity .5s}
+@media (max-width:620px){.tr-marca-host{height:240px}}`}</style>
+      {estado !== "ok" && <div style={{ position: "absolute", inset: 0 }}><MarcaCSS alto={h} /></div>}
+      <div ref={ref} className="tr-marca-gl" aria-label="TECNOriv" style={{ opacity: estado === "ok" ? 1 : 0 }} />
     </div>
   );
 };

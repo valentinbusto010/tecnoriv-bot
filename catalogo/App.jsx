@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Fondo, Marca3D, card, fieldSt, chipSt, btnFondo } from "../compartido/tema.jsx";
+import { Fondo, Marca3D, MiniLogo, card, fieldSt, chipSt, btnFondo } from "../compartido/tema.jsx";
 
 // Catálogo público de Tecno Riv: productos y precios en vivo (misma base que el bot y /gestion).
 // El cliente arma su pedido y lo manda por WhatsApp con un toque.
@@ -147,11 +147,8 @@ export default function App() {
       {/* Barra superior */}
       <div className="tr-glass-bar" style={{ borderBottom: "1px solid", padding: "0 16px", height: "60px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 100 }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
-          <div style={{ width: "32px", height: "32px", background: "linear-gradient(135deg,#1a7bff,#0047c2)", borderRadius: "9px", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: "12px", boxShadow: "0 6px 16px -4px rgba(0,102,255,0.7), inset 0 1px 0 rgba(255,255,255,0.25)" }}>TR</div>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 700, fontSize: "15px", letterSpacing: "-0.02em" }}>Tecno Riv</div>
-            <div style={{ color: "#6b7280", fontSize: "11px", whiteSpace: "nowrap" }}>Catálogo · {negocio.ciudad.split(",")[0]}</div>
-          </div>
+          <MiniLogo alto={32} />
+          <div className="tr-hide-sm" style={{ color: "#6b7280", fontSize: "11px", whiteSpace: "nowrap" }}>Catálogo · {negocio.ciudad.split(",")[0]}</div>
         </div>
         <Btn href={linkWa("¡Hola Tecno Riv! 👋 Tengo una consulta.")} style={{ ...verde, padding: "8px 14px", fontSize: "13px", borderRadius: "100px" }}><Icon name="wa" size={15} /> Escribinos</Btn>
       </div>

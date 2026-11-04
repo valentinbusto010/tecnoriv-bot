@@ -8,6 +8,7 @@ const { crearPublicacion } = require('./src/publicacion');
 const { estadoCatalogo, obtenerHistorial, guardarMensaje } = require('./src/datos');
 const gestion = require('./src/gestion');
 const contenido = require('./src/contenido');
+const catalogo = require('./src/catalogo');
 
 const app = express();
 app.use(express.json({ limit: '2mb' })); // 2 MB: alcanza para subir el logo de la marca
@@ -203,6 +204,11 @@ app.get('/gestion-sw.js', (req, res) => {
 app.use('/app', express.static(path.join(__dirname, 'public', 'app'), { maxAge: '7d' }));
 app.use('/api/gestion', gestion.router(chequearClave, explicarError));
 
+// Catálogo público para clientes (sin contraseña): productos y precios en vivo
+app.get('/catalogo', (req, res) => res.sendFile(path.join(__dirname, 'public', 'catalogo.html')));
+app.get('/catalogo.js', (req, res) => res.sendFile(path.join(__dirname, 'public', 'catalogo.js')));
+app.get('/api/catalogo', catalogo.api);
+
 // Estudio de contenido: carruseles, posts, historias y Marketplace (app aparte, misma contraseña)
 app.get('/contenido', (req, res) => res.sendFile(path.join(__dirname, 'public', 'contenido.html')));
 app.get('/contenido.js', (req, res) => res.sendFile(path.join(__dirname, 'public', 'contenido.js')));
@@ -260,7 +266,7 @@ app.post('/api/responder', chequearClave, async (req, res) => {
 app.get('/privacidad', (req, res) => res.sendFile(path.join(__dirname, 'public', 'privacidad.html')));
 app.get('/eliminar-datos', (req, res) => res.sendFile(path.join(__dirname, 'public', 'eliminar-datos.html')));
 
-app.get('/', (req, res) => res.send('TecnoRiv Bot activo! Panel en /panel · Gestión en /gestion · Contenido en /contenido'));
+app.get('/', (req, res) => res.send('TecnoRiv Bot activo! Panel en /panel · Gestión en /gestion · Contenido en /contenido · Catálogo en /catalogo'));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Servidor corriendo en puerto ${PORT}`));

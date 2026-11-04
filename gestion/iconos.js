@@ -1,3 +1,5 @@
+// ATENCIÓN: los íconos actuales (public/app/icono-*.png y apple-touch-icon.png) tienen el cartel TECNO riv
+// y se hicieron aparte. Correr este script los vuelve a la versión vieja con "TR".
 // Genera los íconos de la app (public/app/*.png). Correr: node gestion/iconos.js
 const path = require('path');
 const sharp = require('sharp');

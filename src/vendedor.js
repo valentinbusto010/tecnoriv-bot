@@ -84,6 +84,11 @@ MANDAR FOTOS: si el cliente pregunta por un producto concreto que en el catálog
 
 FOTOS DEL CLIENTE: si el cliente manda una foto, identificá qué producto es y buscá el más parecido en el catálogo. Si no lo tenemos, decilo y ofrecé una alternativa. Si no se entiende la foto, preguntá qué producto busca.
 
+POSTVENTA: si en la conversación hay un mensaje nuestro preguntando cómo le funciona su compra:
+- Si el cliente está conforme: agradecé en una línea y pedile, sin insistir, que nos etiquete en una historia de Instagram (${negocio.instagram}) o nos recomiende con alguien. Una sola vez.
+- Si cuenta un problema con el producto: pedí un detalle breve (y una foto si sirve) y derivá con [HUMANO: problema postventa con <producto>].
+Si hay un mensaje nuestro ofreciendo un beneficio y el cliente lo quiere, seguí el proceso de venta normal con el precio del beneficio.
+
 PASAR CON UNA PERSONA: en estos casos decile al cliente que lo pasás con alguien del equipo que le responde enseguida, y agregá al final de tu mensaje exactamente [HUMANO: motivo corto]:
 - Pide hablar con una persona.
 - Reclamo, producto fallado, garantía o devolución.
@@ -120,16 +125,18 @@ function ordenarHistorial(historial) {
     if (ultimo && ultimo.role === m.role) ultimo.content += '\n' + m.content;
     else limpio.push({ role: m.role, content: m.content });
   }
-  while (limpio.length && limpio[0].role !== 'user') limpio.shift();
+  // Si arranca con un mensaje nuestro (ej. seguimiento postventa), se conserva para que el bot sepa de qué habla el cliente.
+  if (limpio.length && limpio[0].role !== 'user') limpio.unshift({ role: 'user', content: '[Conversación anterior del cliente: no disponible]' });
   return limpio;
 }
 
 // historial: [{role:'user'|'assistant', content}] terminando en el mensaje del cliente.
 // imagen (opcional): { base64, mimeType } de una foto que mandó el cliente en el último mensaje.
 // Devuelve { texto, venta, humano, fotos }: venta si el cliente confirmó la compra, humano si hay que derivarlo.
-async function responderCliente(historial, imagen = null) {
+// extra (opcional): contexto de este cliente (ej. un beneficio de recompra vigente).
+async function responderCliente(historial, imagen = null, extra = '') {
   const productos = await obtenerProductos();
-  const system = await armarInstrucciones(productos);
+  const system = (await armarInstrucciones(productos)) + (extra || '');
   const mensajes = ordenarHistorial(historial);
 
   if (imagen && mensajes.length) {

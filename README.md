@@ -71,6 +71,22 @@ Botón **✨ Asistente IA** abajo a la derecha. Ve en vivo tu stock, ventas (120
 - **Pedile cambios:** cargar venta o gasto, sumar/restar stock, cambiar precio/costo, pausar o crear productos, configurar la promo, crear o programar contenido. Te muestra una tarjeta y **no cambia nada hasta que tocás Confirmar**.
 - Se puede dictar con el micrófono. Usa la misma `CLAUDE_API_KEY` (cada mensaje cuesta unos centavos de dólar).
 
+### Postventa y resumen diario por WhatsApp (en /gestion → Clientes → Automatizaciones)
+- **Seguimiento:** a los 3 días de marcar un pedido como **entregado**, el bot le escribe "¿Cómo te está funcionando tu…?". Si está conforme, le pide que te etiquete en Instagram; si tiene un problema, te lo deriva.
+- **Oferta de recompra:** a los 35 días le ofrece un accesorio que combina con lo que compró (malla/hidrogel para smartwatch, MagSafe para quien compró funda, etc.) con 10% OFF por 7 días. Si lo compra por el bot, el descuento se aplica solo. Quien responde **BAJA** no recibe más ofertas.
+- **Resumen diario** a tu WhatsApp a las 8: ventas de ayer y del mes, pendientes, stock bajo, contenido del día y un consejo de la IA. Respondé **hoy** para verlo completo cuando llega por plantilla.
+- Días, % de descuento y hora se cambian desde el panel. Solo escribe a clientes de lunes a sábado de 10 a 20 h. Los pedidos que ya estaban entregados antes de activar esto no reciben mensajes.
+
+**Plantillas (obligatorias, una sola vez):** WhatsApp solo deja mandar texto libre a quien te escribió en las últimas 24 h. Para el resto hay que crear 3 plantillas en **business.facebook.com → WhatsApp Manager → Plantillas de mensajes → Crear plantilla**, idioma **Español (ARG)**, con estos nombres y textos exactos:
+
+| Nombre | Categoría | Texto |
+|---|---|---|
+| `tr_seguimiento` | Utilidad | `Hola {{1}}! Te escribimos de Tecno Riv 👋 ¿Cómo te está funcionando tu {{2}}? Si tenés alguna duda o algo no anda bien, respondé este mensaje y te ayudamos.` |
+| `tr_recompra` | Marketing | `Hola {{1}}! Como compraste {{2}} en Tecno Riv, te guardamos un beneficio: {{3}}, {{4}}% OFF hasta el {{5}}. ¿Te lo reservamos? Respondé este mensaje. Si no querés recibir más ofertas, respondé BAJA.` |
+| `tr_resumen` | Utilidad | `Buen día! Tu resumen de Tecno Riv: {{1}}. Respondé HOY para ver el detalle completo.` |
+
+Ejemplos para la revisión de Meta: {{1}} Juan · {{2}} Smartwatch D20 · {{3}} Malla para smartwatch a $3.149 (antes $3.499) · {{4}} 10 · {{5}} 12/11. Para el resumen: ayer $45.000 (2 pedidos) · mes $380.000 · 1 pendientes · 3 productos con stock bajo. Si usás otro idioma, cargá `WA_IDIOMA_PLANTILLAS` en Render (ej. `es`). Correr también `supabase-postventa.sql`.
+
 **Instalarla como app:** abrí `/gestion` y tocá **Instalar app** arriba a la derecha (Chrome en PC y Android). En iPhone: Safari → Compartir → Agregar a inicio.
 
 **Desde tu WhatsApp** (el número de `OWNER_PHONE`), mandale al bot:
@@ -88,7 +104,7 @@ Editá el archivo `src/negocio.js`.
 
 ## Instalación (una sola vez)
 
-1. **Supabase:** abrí tu proyecto → **SQL Editor** → pegá el contenido de `supabase.sql` → **Run**. Después corré también `supabase-gestion.sql`, `supabase-margen.sql`, `supabase-publicaciones.sql`, `supabase-instagram.sql` y `supabase-contenido.sql` (agrega clientes, gastos y el stock automático; se puede correr más de una vez). Cargá tus productos reales en la tabla `productos` o desde `/gestion`.
+1. **Supabase:** abrí tu proyecto → **SQL Editor** → pegá el contenido de `supabase.sql` → **Run**. Después corré también `supabase-gestion.sql`, `supabase-margen.sql`, `supabase-publicaciones.sql`, `supabase-instagram.sql`, `supabase-contenido.sql` y `supabase-postventa.sql` (agrega clientes, gastos y el stock automático; se puede correr más de una vez). Cargá tus productos reales en la tabla `productos` o desde `/gestion`.
 2. **Variables:** en tu hosting (Render, Railway, etc.) cargá las variables de `.env.example`:
    - `CLAUDE_API_KEY`, `WHATSAPP_TOKEN`, `PHONE_NUMBER_ID`, `VERIFY_TOKEN`, `SUPABASE_URL`, `SUPABASE_KEY` (las mismas que ya usabas)
    - **Nuevas:** `OWNER_PHONE` (tu número para los avisos de venta, ej `5493584123456`) y `PANEL_PASSWORD` (inventá una contraseña).
@@ -113,6 +129,7 @@ Para probar en tu compu: `npm install`, copiá `.env.example` como `.env`, compl
 - `src/catalogo.js` → API pública del catálogo · `catalogo/App.jsx` → la página del catálogo
 - `src/estudio.js` → diseño de carruseles, posts e historias + plan semanal · `src/contenido.js` → API del estudio, publicación en Instagram y programador
 - `contenido/App.jsx` → el estudio de contenido (si lo cambiás: `npm i --no-save esbuild react@18 react-dom@18 && node contenido/build.mjs`)
+- `src/postventa.js` → seguimiento, oferta de recompra y resumen diario · `src/whatsapp.js` → envío por WhatsApp (texto y plantillas)
 - `src/asistente.js` → API del asistente IA · `compartido/Asistente.jsx` → el chat flotante
 - `gestion/iconos.js` → genera los íconos de la app
 

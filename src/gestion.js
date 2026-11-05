@@ -123,6 +123,15 @@ async function registrarVenta(telefono, resumen, nombrePerfil) {
       v.monto = precioPromo(v.producto.precio, promo) * v.cantidad;
     }
   }
+  // Beneficio de recompra que le ofrecimos por WhatsApp (va sobre el precio con promo).
+  let beneficio = null;
+  if (v.producto && !v.regalo) {
+    beneficio = await require('./postventa').beneficioDe(telefono).catch(() => null);
+    if (beneficio && beneficio.producto_id === v.producto.id) {
+      const base = promo?.descuento ? precioPromo(v.producto.precio, promo) : Number(v.producto.precio);
+      v.monto = Math.round(base * (1 - beneficio.descuento / 100)) * v.cantidad;
+    } else beneficio = null;
+  }
   // Pago en efectivo: se registra con el descuento por efectivo (el regalo sigue en $0).
   if (v.producto && !v.regalo && /efectivo/i.test(v.pago || '')) {
     v.monto = precioEfectivo(v.monto / v.cantidad) * v.cantidad;
@@ -159,6 +168,7 @@ async function registrarVenta(telefono, resumen, nombrePerfil) {
     .select()
     .single();
   if (error) console.error('Error guardando pedido:', error.message);
+  if (data && beneficio) await supabase.from('clientes').update({ beneficio: null }).eq('id', beneficio.cliente_id); // se usa una sola vez
   return { pedido: data || null, duplicado: false, venta: v };
 }
 
@@ -168,6 +178,7 @@ const AYUDA_DUENO = `Comandos:
 • gasto 15000 marketing Meta Ads
 • gasto 35k stock reposición cables
 • resumen → ventas y gastos del mes
+• hoy → el resumen diario completo (ventas de ayer, pendientes, stock, consejo)
 Categorías: ${CATEGORIAS_GASTO.join(', ')}`;
 
 async function cargarGasto(texto) {
@@ -219,6 +230,7 @@ async function comandoDueno(texto) {
   const t = texto.trim();
   if (/^gastos?\s+\S/i.test(t)) return cargarGasto(t);
   if (/^resumen$/i.test(t)) return resumenMes();
+  if (/^(hoy|ok|dale|ver)$/i.test(t)) return require('./postventa').ultimoResumen();
   if (/^(ayuda|comandos)$/i.test(t)) return AYUDA_DUENO;
   return null;
 }
@@ -228,7 +240,11 @@ async function comandoDueno(texto) {
 const AJUSTES_DEFECTO = {
   margen_objetivo: 40, dias_costo_viejo: 30, redondeo_precio: 500,
   promo_descuento: 0, promo_hasta: '', promo_regalo_id: 0, promo_regalo_categoria: 'Wearables',
+  // Automatizaciones (postventa por WhatsApp y resumen diario)
+  postventa_activa: 1, dias_seguimiento: 3, dias_recompra: 35, recompra_descuento: 10, resumen_activo: 1, resumen_hora: 8,
 };
+// Claves internas de "ajustes" que no son configuración del panel
+const AJUSTES_OCULTOS = '(logo_marca,resumen_texto,resumen_ultimo,dueno_ultimo)';
 const AJUSTES_TEXTO = ['promo_hasta', 'promo_regalo_categoria'];
 
 const CAMPOS = {
@@ -320,7 +336,7 @@ function router(chequearClave, explicarError = (e) => e.message) {
       return res.status(500).json({ error: falta ? `Falta correr supabase-gestion.sql en Supabase (${error.message})` : error.message });
     }
     // Ajustes del margen: si todavía no se corrió supabase-margen.sql, usa los valores por defecto.
-    const aj = await supabase.from('ajustes').select('clave, valor').neq('clave', 'logo_marca');
+    const aj = await supabase.from('ajustes').select('clave, valor').not('clave', 'in', AJUSTES_OCULTOS);
     const ajustes = { ...AJUSTES_DEFECTO, ...Object.fromEntries((aj.data || []).map((a) => [a.clave, AJUSTES_TEXTO.includes(a.clave) ? String(a.valor ?? '') : Number(a.valor)])) };
     res.json({ productos: productos.data, pedidos: pedidos.data, gastos: gastos.data, clientes: clientes.data, ajustes, faltaMargen: Boolean(aj.error) });
   });

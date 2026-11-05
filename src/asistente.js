@@ -467,4 +467,4 @@ function router(chequearClave, explicarError = (e) => e.message) {
   return r;
 }
 
-module.exports = { router, conversar, ACCIONES, resumirAccion, HERRAMIENTAS };
+module.exports = { router, conversar, fotoNegocio, ACCIONES, resumirAccion, HERRAMIENTAS };

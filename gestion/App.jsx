@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { Fondo, Marca3D, MiniLogo, card, fieldSt, chipSt, btnFondo } from "../compartido/tema.jsx";
 import Asistente from "../compartido/Asistente.jsx";
 
@@ -915,6 +916,133 @@ const Finanzas = ({ pedidos, gastos, accion }) => {
 };
 
 // ─── CLIENTES ──────────────────────────────────────────────────────────────────
+// ─── AUTOMATIZACIONES (postventa + resumen diario por WhatsApp) ───────────────
+async function apiAuto(ruta, metodo = "GET") {
+  const r = await fetch("/api/auto" + ruta, { method: metodo, headers: { "x-panel-key": getClave() } });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || `Error ${r.status}`);
+  return data;
+}
+
+const Interruptor = ({ on, onChange, label }) => (
+  <button onClick={() => onChange(!on)} role="switch" aria-checked={on} aria-label={label} style={{ width: 44, height: 26, borderRadius: 100, border: "none", cursor: "pointer", padding: 3, background: on ? "linear-gradient(135deg,#0066FF,#1EB6FF)" : "rgba(255,255,255,0.12)", display: "flex", justifyContent: on ? "flex-end" : "flex-start", transition: "background .2s", flexShrink: 0 }}>
+    <span style={{ width: 20, height: 20, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 4px rgba(0,0,0,.4)" }} />
+  </button>
+);
+
+const TIPO_AUTO = { seguimiento: { label: "Seguimiento", color: "#10b981" }, recompra: { label: "Oferta", color: "#a78bfa" }, resumen: { label: "Resumen", color: "#1EB6FF" } };
+
+function Automatizaciones() {
+  const [est, setEst] = useState(null);
+  const [cfg, setCfg] = useState(null);
+  const [error, setError] = useState("");
+  const [ok, setOk] = useState("");
+  const [ocupado, setOcupado] = useState("");
+  const [vista, setVista] = useState(null);
+  const [verTodos, setVerTodos] = useState(false);
+
+  const cargar = useCallback(async () => {
+    try { const d = await apiAuto("/estado"); setEst(d); setCfg(d.config); setError(""); }
+    catch (e) { setError(e.message); }
+  }, []);
+  useEffect(() => { cargar(); }, [cargar]);
+  useEffect(() => { if (!ok) return; const t = setTimeout(() => setOk(""), 3500); return () => clearTimeout(t); }, [ok]);
+
+  if (error && !est) return <div style={{ ...card, padding: "16px", marginBottom: "20px", color: "#fca5a5", fontSize: "13px" }}>Automatizaciones: {error}</div>;
+  if (!est || !cfg) return null;
+
+  const cambiado = Object.keys(cfg).some(k => Number(cfg[k]) !== Number(est.config[k]));
+  const set = (k, v) => setCfg(c => ({ ...c, [k]: v }));
+  const hacer = async (clave, fn) => { setOcupado(clave); setError(""); try { await fn(); } catch (e) { setError(e.message); } finally { setOcupado(""); } };
+  const guardar = () => hacer("guardar", async () => {
+    for (const k of Object.keys(cfg)) if (Number(cfg[k]) !== Number(est.config[k])) await api(`/ajustes/${k}`, "PUT", { valor: Number(cfg[k]) });
+    await cargar(); setOk("Guardado ✓");
+  });
+  const enviarAhora = () => hacer("enviar", async () => { const r = await apiAuto("/resumen", "POST"); await cargar(); setOk(r.via === "plantilla" ? "Enviado con la plantilla (respondé \"hoy\" en WhatsApp para ver el detalle)" : "Enviado a tu WhatsApp ✓"); });
+  const verResumen = () => hacer("ver", async () => setVista((await apiAuto("/resumen")).texto));
+
+  const errores = est.ultimos.filter(m => m.estado === "error");
+  const faltaPlantilla = errores.some(m => /plantilla/i.test(m.error || ""));
+  const lista = verTodos ? est.ultimos : est.ultimos.slice(0, 6);
+  const numSt = { ...fieldSt, width: "64px", padding: "8px 10px", textAlign: "center" };
+  const fila = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" };
+
+  return (
+    <div style={{ ...card, padding: "18px", marginBottom: "20px" }}>
+      <div style={{ ...fila, marginBottom: "4px" }}>
+        <div style={{ color: "#fff", fontWeight: 700, fontSize: "16px", display: "flex", alignItems: "center", gap: "8px" }}><Icon name="wa" size={18} /> Automatizaciones por WhatsApp</div>
+        {cambiado && <Btn onClick={guardar} disabled={ocupado === "guardar"} style={{ padding: "7px 14px", fontSize: "13px" }}>{ocupado === "guardar" ? "Guardando…" : "Guardar cambios"}</Btn>}
+      </div>
+      {!est.whatsapp && <div style={{ color: "#f59e0b", fontSize: "12px", marginBottom: "8px" }}>⚠️ Falta WHATSAPP_TOKEN o PHONE_NUMBER_ID en Render: no se envía nada.</div>}
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "12px", marginTop: "12px" }}>
+        <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "12px", padding: "14px" }}>
+          <div style={fila}>
+            <div><div style={{ color: "#fff", fontWeight: 700, fontSize: "14px" }}>Postventa</div><div style={{ color: "#6b7280", fontSize: "12px" }}>Seguimiento + oferta de recompra</div></div>
+            <Interruptor on={Boolean(Number(cfg.postventa_activa))} onChange={v => set("postventa_activa", v ? 1 : 0)} label="Postventa" />
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "12px", fontSize: "13px", color: "#d1d5db", opacity: Number(cfg.postventa_activa) ? 1 : 0.5 }}>
+            <div style={fila}><span>“¿Cómo te funciona?” a los</span><span><input type="number" min="1" max="30" value={cfg.dias_seguimiento} onChange={e => set("dias_seguimiento", e.target.value)} style={numSt} /> días</span></div>
+            <div style={fila}><span>Oferta de accesorio a los</span><span><input type="number" min="7" max="120" value={cfg.dias_recompra} onChange={e => set("dias_recompra", e.target.value)} style={numSt} /> días</span></div>
+            <div style={fila}><span>Descuento de la oferta</span><span><input type="number" min="1" max="50" value={cfg.recompra_descuento} onChange={e => set("recompra_descuento", e.target.value)} style={numSt} /> %</span></div>
+          </div>
+          <div style={{ color: "#6b7280", fontSize: "11px", marginTop: "10px", lineHeight: 1.5 }}>Lun a sáb de 10 a 20 h · cuenta desde que marcás el pedido como <b>entregado</b> · quien responde BAJA no recibe más ofertas.</div>
+        </div>
+
+        <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "12px", padding: "14px" }}>
+          <div style={fila}>
+            <div><div style={{ color: "#fff", fontWeight: 700, fontSize: "14px" }}>Resumen diario</div><div style={{ color: "#6b7280", fontSize: "12px" }}>A tu WhatsApp, todas las mañanas</div></div>
+            <Interruptor on={Boolean(Number(cfg.resumen_activo))} onChange={v => set("resumen_activo", v ? 1 : 0)} label="Resumen diario" />
+          </div>
+          <div style={{ ...fila, marginTop: "12px", fontSize: "13px", color: "#d1d5db", opacity: Number(cfg.resumen_activo) ? 1 : 0.5 }}>
+            <span>Hora de envío</span>
+            <select value={cfg.resumen_hora} onChange={e => set("resumen_hora", e.target.value)} style={{ ...fieldSt, width: "auto", padding: "8px 10px" }}>
+              {[6, 7, 8, 9, 10, 11, 12].map(h => <option key={h} value={h}>{String(h).padStart(2, "0")}:00</option>)}
+            </select>
+          </div>
+          <div style={{ display: "flex", gap: "8px", marginTop: "12px", flexWrap: "wrap" }}>
+            <Btn variant="ghost" onClick={verResumen} disabled={Boolean(ocupado)} style={{ padding: "8px 12px", fontSize: "13px" }}>{ocupado === "ver" ? "Armando…" : "Ver el de hoy"}</Btn>
+            <Btn onClick={enviarAhora} disabled={Boolean(ocupado) || !est.dueno} style={{ padding: "8px 12px", fontSize: "13px" }}>{ocupado === "enviar" ? "Enviando…" : "Enviármelo ahora"}</Btn>
+          </div>
+          <div style={{ color: "#6b7280", fontSize: "11px", marginTop: "10px" }}>{est.resumenUltimo ? `Último: ${fmtDate(est.resumenUltimo)}` : "Todavía no se envió ninguno"} · respondé <b>hoy</b> en WhatsApp para verlo completo.</div>
+        </div>
+      </div>
+
+      {(ok || error) && <div style={{ marginTop: "12px", fontSize: "13px", color: error ? "#fca5a5" : "#6ee7b7" }}>{error || ok}</div>}
+      {faltaPlantilla && <div style={{ marginTop: "12px", fontSize: "12px", color: "#fcd34d", background: "#f59e0b14", border: "1px solid #f59e0b44", borderRadius: "10px", padding: "10px 12px", lineHeight: 1.5 }}>Falta aprobar alguna plantilla en WhatsApp Manager (tr_seguimiento, tr_recompra o tr_resumen). Sin plantilla solo llegan los mensajes a quien te escribió en las últimas 24 h. Los textos exactos están en el README.</div>}
+
+      <div style={{ marginTop: "16px" }}>
+        <div style={{ ...fila, marginBottom: "6px" }}>
+          <span style={sectionLabel}>Últimos envíos</span>
+          <span style={{ color: "#6b7280", fontSize: "11px" }}>En espera: {est.enCola.seguimiento} seguimiento{est.enCola.seguimiento === 1 ? "" : "s"} · {est.enCola.recompra} oferta{est.enCola.recompra === 1 ? "" : "s"}</span>
+        </div>
+        {est.ultimos.length === 0 ? <div style={{ color: "#6b7280", fontSize: "13px" }}>Todavía no se envió nada. Arranca cuando marques pedidos como entregados.</div> : lista.map(m => (
+          <div key={m.id} title={m.texto || ""} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", padding: "8px 0", borderTop: "1px solid rgba(255,255,255,0.06)", fontSize: "13px" }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                <Badge color={TIPO_AUTO[m.tipo]?.color || "#6b7280"}>{TIPO_AUTO[m.tipo]?.label || m.tipo}</Badge>
+                <span style={{ color: "#e5e7eb" }}>{m.cliente || fmtTel(m.telefono)}</span>
+              </div>
+              {m.estado === "error" && <div style={{ color: "#fca5a5", fontSize: "12px", marginTop: "2px" }}>{m.error}</div>}
+            </div>
+            <span style={{ color: m.estado === "error" ? "#ef4444" : "#6b7280", fontSize: "11px", whiteSpace: "nowrap" }}>{m.estado === "error" ? "✕ falló" : `✓ ${m.via}`} · {fmtDate(m.created_at)}</span>
+          </div>
+        ))}
+        {est.ultimos.length > 6 && <button onClick={() => setVerTodos(v => !v)} style={{ background: "none", border: "none", color: "#60a5fa", fontSize: "12px", cursor: "pointer", padding: "6px 0", fontFamily: "inherit" }}>{verTodos ? "Ver menos" : `Ver los ${est.ultimos.length}`}</button>}
+      </div>
+
+      {vista && createPortal(<div style={{ fontFamily: "'Space Grotesk', 'Inter', system-ui, sans-serif", color: "#fff" }}>
+        <Modal title="Resumen de hoy" onClose={() => setVista(null)}>
+          <div style={{ background: "#0b141a", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px", padding: "14px", color: "#e9edef", fontSize: "14px", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>
+            {vista.split(/(\*[^*\n]+\*)/g).map((t, i) => t.startsWith("*") && t.endsWith("*") ? <b key={i}>{t.slice(1, -1)}</b> : t)}
+          </div>
+          <Btn onClick={() => { setVista(null); enviarAhora(); }} disabled={!est.dueno} style={{ width: "100%", justifyContent: "center", marginTop: "14px" }}>Enviármelo ahora</Btn>
+        </Modal></div>, document.body
+      )}
+    </div>
+  );
+}
+
 const Clientes = ({ clientes, pedidos, accion }) => {
   const [busca, setBusca] = useState("");
   const [abierto, setAbierto] = useState(null);
@@ -961,6 +1089,8 @@ const Clientes = ({ clientes, pedidos, accion }) => {
         <StatCard label="Ticket promedio" value={fmt(ticket)} accent="#0066FF" icon="finanzas" />
       </div>
 
+      <Automatizaciones />
+
       <div style={{ display: "flex", gap: "8px", marginBottom: "16px", flexWrap: "wrap" }}>
         <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar por nombre o teléfono" style={{ ...fieldSt, flex: 1, minWidth: "200px" }} />
         <select value={orden} onChange={e => setOrden(e.target.value)} style={{ ...fieldSt, width: "auto" }}>
@@ -978,6 +1108,8 @@ const Clientes = ({ clientes, pedidos, accion }) => {
                   {c.nombre || fmtTel(c.telefono) || "Sin nombre"}
                   {c.pedidos.length > 1 && <Badge color="#a78bfa">recompra</Badge>}
                   {c.pedidos.length === 0 && <Badge color="#6b7280">consulta</Badge>}
+                  {c.beneficio && c.beneficio.hasta >= today() && <Badge color="#f59e0b">🎁 {c.beneficio.descuento}% en {c.beneficio.nombre}</Badge>}
+                  {c.no_contactar && <Badge color="#6b7280">sin ofertas</Badge>}
                 </div>
                 <div style={{ color: "#6b7280", fontSize: "12px", marginTop: "2px" }}>
                   {[c.nombre && fmtTel(c.telefono), `${c.pedidos.length} pedido${c.pedidos.length === 1 ? "" : "s"}`, c.ultima ? `última compra ${fmtDate(c.ultima)}` : `escribió ${fmtDate(c.ultimo_contacto)}`].filter(Boolean).join(" · ")}

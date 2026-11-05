@@ -174,6 +174,35 @@ function iniciarProgramador(avisarDueno) {
 
 // ───────── API ─────────
 
+// Crea una pieza nueva: { formato, plantilla, tema, producto_ids, programado_para? }. Devuelve el id.
+async function crearPieza(body) {
+  const malo = (m) => Object.assign(new Error(m), { status: 400 });
+  const { formato, plantilla = 'libre', tema = '', programado_para = null } = body;
+  if (!FORMATOS.includes(formato)) throw malo('Formato inválido');
+  const ids = (body.producto_ids || []).map(Number).filter(Boolean).slice(0, 8);
+  const [{ data: productos, error }, promo] = await Promise.all([supabase.from('productos').select('*'), promoVigente()]);
+  if (error) throw error;
+  const elegidos = ids.map((id) => productos.find((p) => p.id === id)).filter(Boolean);
+  const estudio = require('./estudio');
+  let fila, imagenes;
+  if (formato === 'marketplace') {
+    if (!elegidos[0]) throw malo('Elegí el producto para Marketplace');
+    const m = await estudio.crearPiezaMarketplace({ producto: elegidos[0], promo, detalles: tema });
+    fila = { formato, plantilla: 'producto', titulo: m.titulo, titulo_mkp: m.titulo_mkp, caption: m.caption };
+    imagenes = m.imagenes;
+  } else {
+    if (['producto', 'coleccion', 'comparativa'].includes(plantilla) && !elegidos.length) throw malo('Elegí al menos un producto para esta plantilla');
+    if (plantilla === 'comparativa' && elegidos.length < 2) throw malo('Para comparar elegí 2 productos');
+    const g = await estudio.crearPiezaInstagram({ formato, plantilla, tema, elegidos, productos, promo });
+    fila = { formato, plantilla, titulo: g.titulo, caption: g.caption, guion: { slides: g.slides } };
+    imagenes = g.imagenes;
+  }
+  fila.tema = tema || null;
+  fila.producto_ids = elegidos.map((p) => p.id);
+  if (programado_para) Object.assign(fila, { estado: 'programado', programado_para });
+  return guardarPieza(fila, imagenes);
+}
+
 function router(chequearClave, explicarError = (e) => e.message) {
   const r = express.Router();
   r.use((req, res, next) => {
@@ -220,32 +249,8 @@ function router(chequearClave, explicarError = (e) => e.message) {
 
   // Crea una pieza nueva: { formato, plantilla, tema, producto_ids, programado_para? }
   r.post('/piezas', async (req, res) => {
-    try {
-      const { formato, plantilla = 'libre', tema = '', programado_para = null } = req.body;
-      if (!FORMATOS.includes(formato)) return res.status(400).json({ error: 'Formato inválido' });
-      const ids = (req.body.producto_ids || []).map(Number).filter(Boolean).slice(0, 8);
-      const [{ data: productos, error }, promo] = await Promise.all([supabase.from('productos').select('*'), promoVigente()]);
-      if (error) throw error;
-      const elegidos = ids.map((id) => productos.find((p) => p.id === id)).filter(Boolean);
-      const estudio = require('./estudio');
-      let fila, imagenes;
-      if (formato === 'marketplace') {
-        if (!elegidos[0]) return res.status(400).json({ error: 'Elegí el producto para Marketplace' });
-        const m = await estudio.crearPiezaMarketplace({ producto: elegidos[0], promo, detalles: tema });
-        fila = { formato, plantilla: 'producto', titulo: m.titulo, titulo_mkp: m.titulo_mkp, caption: m.caption };
-        imagenes = m.imagenes;
-      } else {
-        if (['producto', 'coleccion', 'comparativa'].includes(plantilla) && !elegidos.length) return res.status(400).json({ error: 'Elegí al menos un producto para esta plantilla' });
-        if (plantilla === 'comparativa' && elegidos.length < 2) return res.status(400).json({ error: 'Para comparar elegí 2 productos' });
-        const g = await estudio.crearPiezaInstagram({ formato, plantilla, tema, elegidos, productos, promo });
-        fila = { formato, plantilla, titulo: g.titulo, caption: g.caption, guion: { slides: g.slides } };
-        imagenes = g.imagenes;
-      }
-      fila.tema = tema || null;
-      fila.producto_ids = elegidos.map((p) => p.id);
-      if (programado_para) Object.assign(fila, { estado: 'programado', programado_para });
-      res.json({ id: await guardarPieza(fila, imagenes) });
-    } catch (e) { fallar(res, e); }
+    try { res.json({ id: await crearPieza(req.body) }); }
+    catch (e) { e.status === 400 ? res.status(400).json({ error: e.message }) : fallar(res, e); }
   });
 
   // Cambios simples: título, caption, estado, fecha
@@ -362,4 +367,4 @@ async function logoPublico(req, res) {
   res.send(Buffer.from(b64, 'base64'));
 }
 
-module.exports = { router, imagenPublica, iniciarProgramador, logoPublico };
+module.exports = { router, imagenPublica, iniciarProgramador, logoPublico, crearPieza, FORMATOS };

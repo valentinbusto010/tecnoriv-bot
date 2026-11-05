@@ -253,6 +253,53 @@ function limpiar(tabla, body) {
   return out;
 }
 
+// Guarda un ajuste (margen, promo…) validando el valor. Devuelve la fila guardada.
+async function guardarAjuste(clave, bruto) {
+  if (!(clave in AJUSTES_DEFECTO)) throw new Error('Ajuste desconocido');
+  let valor;
+  if (AJUSTES_TEXTO.includes(clave)) {
+    valor = String(bruto ?? '').trim();
+    if (clave === 'promo_hasta' && valor && !/^\d{4}-\d{2}-\d{2}$/.test(valor)) throw new Error('Fecha inválida');
+  } else {
+    valor = Number(bruto);
+    if (!Number.isFinite(valor) || valor < 0 || (clave === 'promo_descuento' && valor > 90)) throw new Error('Valor inválido');
+  }
+  invalidarAjustes();
+  const { data, error } = await supabase.from('ajustes').upsert({ clave, valor }, { onConflict: 'clave' }).select().single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+// Pedido cargado a mano (panel o asistente): resuelve el producto y el cliente. Devuelve { data, error }.
+async function crearPedido(body) {
+  const p = limpiar('pedidos', body);
+  if (p.producto_id) {
+    const { data: prod } = await supabase.from('productos').select('nombre').eq('id', p.producto_id).maybeSingle();
+    if (prod) p.producto = prod.nombre;
+  }
+  if (!p.cliente_id && p.cliente) {
+    const tel = (p.telefono || '').replace(/\D/g, '') || null;
+    const { data: c } = tel
+      ? await supabase.from('clientes').select('id').eq('telefono', tel).maybeSingle()
+      : await supabase.from('clientes').select('id').ilike('nombre', p.cliente).is('telefono', null).maybeSingle();
+    if (c) p.cliente_id = c.id;
+    else {
+      const { data: nuevo } = await supabase.from('clientes').insert({ nombre: p.cliente, telefono: tel, origen: p.canal || 'Panel' }).select('id').single();
+      p.cliente_id = nuevo?.id || null;
+    }
+    p.telefono = tel;
+  }
+  return supabase.from('pedidos').insert({ ...p, origen: 'panel' }).select().single();
+}
+
+// Suma o resta stock sin bajar de 0. Devuelve { data, error }.
+async function ajustarStock(id, delta) {
+  const { data: prod, error } = await supabase.from('productos').select('stock').eq('id', id).single();
+  if (error) return { error };
+  const stock = Math.max(0, prod.stock + (Number(delta) || 0));
+  return supabase.from('productos').update({ stock }).eq('id', id).select().single();
+}
+
 function router(chequearClave, explicarError = (e) => e.message) {
   const r = express.Router();
   r.use(chequearClave);
@@ -279,18 +326,8 @@ function router(chequearClave, explicarError = (e) => e.message) {
   });
 
   r.put('/ajustes/:clave', async (req, res) => {
-    const { clave } = req.params;
-    if (!(clave in AJUSTES_DEFECTO)) return res.status(400).json({ error: 'Ajuste desconocido' });
-    let valor;
-    if (AJUSTES_TEXTO.includes(clave)) {
-      valor = String(req.body.valor ?? '').trim();
-      if (clave === 'promo_hasta' && valor && !/^\d{4}-\d{2}-\d{2}$/.test(valor)) return res.status(400).json({ error: 'Fecha inválida' });
-    } else {
-      valor = Number(req.body.valor);
-      if (!Number.isFinite(valor) || valor < 0 || (clave === 'promo_descuento' && valor > 90)) return res.status(400).json({ error: 'Valor inválido' });
-    }
-    invalidarAjustes();
-    responder(res, await supabase.from('ajustes').upsert({ clave, valor }, { onConflict: 'clave' }).select().single());
+    try { res.json(await guardarAjuste(req.params.clave, req.body.valor)); }
+    catch (e) { res.status(400).json({ error: e.message }); }
   });
 
   // ── Publicaciones de Marketplace ──
@@ -394,34 +431,10 @@ function router(chequearClave, explicarError = (e) => e.message) {
   });
 
   // Pedido cargado a mano: resuelve el producto y el cliente.
-  r.post('/pedidos', async (req, res) => {
-    const p = limpiar('pedidos', req.body);
-    if (p.producto_id) {
-      const { data: prod } = await supabase.from('productos').select('nombre').eq('id', p.producto_id).maybeSingle();
-      if (prod) p.producto = prod.nombre;
-    }
-    if (!p.cliente_id && p.cliente) {
-      const tel = (p.telefono || '').replace(/\D/g, '') || null;
-      const { data: c } = tel
-        ? await supabase.from('clientes').select('id').eq('telefono', tel).maybeSingle()
-        : await supabase.from('clientes').select('id').ilike('nombre', p.cliente).is('telefono', null).maybeSingle();
-      if (c) p.cliente_id = c.id;
-      else {
-        const { data: nuevo } = await supabase.from('clientes').insert({ nombre: p.cliente, telefono: tel, origen: p.canal || 'Panel' }).select('id').single();
-        p.cliente_id = nuevo?.id || null;
-      }
-      p.telefono = tel;
-    }
-    responder(res, await supabase.from('pedidos').insert({ ...p, origen: 'panel' }).select().single());
-  });
+  r.post('/pedidos', async (req, res) => responder(res, await crearPedido(req.body)));
 
   // Ajuste +/- de stock desde el panel.
-  r.post('/productos/:id/stock', async (req, res) => {
-    const { data: prod, error } = await supabase.from('productos').select('stock').eq('id', req.params.id).single();
-    if (error) return res.status(400).json({ error: error.message });
-    const stock = Math.max(0, prod.stock + (Number(req.body.delta) || 0));
-    responder(res, await supabase.from('productos').update({ stock }).eq('id', req.params.id).select().single());
-  });
+  r.post('/productos/:id/stock', async (req, res) => responder(res, await ajustarStock(req.params.id, req.body.delta)));
 
   for (const tabla of Object.keys(CAMPOS)) {
     if (tabla !== 'pedidos') {
@@ -435,4 +448,7 @@ function router(chequearClave, explicarError = (e) => e.message) {
   return r;
 }
 
-module.exports = { registrarContacto, registrarVenta, parsearVenta, comandoDueno, esDueno, router, fmt, margenReal };
+module.exports = {
+  registrarContacto, registrarVenta, parsearVenta, comandoDueno, esDueno, router, fmt, margenReal,
+  limpiar, crearPedido, ajustarStock, guardarAjuste, cargarGasto, hoyAR, CATEGORIAS_GASTO, ESTADOS, AJUSTES_DEFECTO,
+};

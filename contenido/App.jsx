@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Fondo, Marca3D, MiniLogo, card, fieldSt, chipSt, btnFondo } from "../compartido/tema.jsx";
+import Asistente from "../compartido/Asistente.jsx";
 
 // Estudio de contenido Tecno Riv: crear, guardar, programar y publicar
 // carruseles, posts, historias y publicaciones de Marketplace.
@@ -672,6 +673,8 @@ export default function App() {
       )}
 
       {aviso && <div style={{ position: "fixed", bottom: "100px", left: "16px", right: "16px", maxWidth: "480px", margin: "0 auto", background: "#ef4444", color: "#fff", padding: "12px 16px", borderRadius: "10px", fontSize: "14px", zIndex: 2000 }}>{aviso}</div>}
+
+      <Asistente app="contenido" onCambio={cargar} />
 
       <div className="tr-dock">
         {tabs.map(t => (

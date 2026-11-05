@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Fondo, Marca3D, MiniLogo, card, fieldSt, chipSt, btnFondo } from "../compartido/tema.jsx";
+import Asistente from "../compartido/Asistente.jsx";
 
 // Sistema de gestión TecnoRiv conectado al bot.
 // Los datos viven en Supabase y pasan por el servidor del bot (/api/gestion),
@@ -1128,6 +1129,8 @@ export default function App() {
       )}
 
       {aviso && <div style={{ position: "fixed", bottom: "100px", left: "16px", right: "16px", maxWidth: "480px", margin: "0 auto", background: "#ef4444", color: "#fff", padding: "12px 16px", borderRadius: "10px", fontSize: "14px", zIndex: 2000 }}>{aviso.texto}</div>}
+
+      <Asistente app="gestion" onCambio={cargar} />
 
       <div className="tr-dock">
         {tabs.map(t => (

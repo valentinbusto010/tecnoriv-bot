@@ -219,6 +219,8 @@ app.get('/contenido-sw.js', (req, res) => {
 app.get('/contenido/img/:clave.jpg', contenido.imagenPublica);
 app.get('/marca/logo', contenido.logoPublico);
 app.use('/api/contenido', contenido.router(chequearClave, explicarError));
+// Asistente IA (chat con datos reales + acciones con confirmación), compartido por /gestion y /contenido
+app.use('/api/asistente', require('./src/asistente').router(chequearClave, explicarError));
 
 app.get('/api/estado', chequearClave, async (req, res) => res.json(await estadoCatalogo()));
 

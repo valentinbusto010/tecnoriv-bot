@@ -65,6 +65,12 @@ App aparte (misma contraseña) para hacer y publicar todo el contenido de Instag
 - **Marketplace** siempre es manual (Facebook no lo permite automático): imagen + título + descripción listos para copiar.
 - Instalala como app aparte desde `/contenido` → **App**.
 
+### Asistente IA (en /gestion y /contenido)
+Botón **✨ Asistente IA** abajo a la derecha. Ve en vivo tu stock, ventas (120 días), gastos, clientes y contenido, y calcula los totales exactos.
+- **Preguntale:** "¿cómo vengo este mes?", "¿qué tengo que reponer?", "¿cuál es mi producto más rentable?", "¿qué compró Juan?".
+- **Pedile cambios:** cargar venta o gasto, sumar/restar stock, cambiar precio/costo, pausar o crear productos, configurar la promo, crear o programar contenido. Te muestra una tarjeta y **no cambia nada hasta que tocás Confirmar**.
+- Se puede dictar con el micrófono. Usa la misma `CLAUDE_API_KEY` (cada mensaje cuesta unos centavos de dólar).
+
 **Instalarla como app:** abrí `/gestion` y tocá **Instalar app** arriba a la derecha (Chrome en PC y Android). En iPhone: Safari → Compartir → Agregar a inicio.
 
 **Desde tu WhatsApp** (el número de `OWNER_PHONE`), mandale al bot:
@@ -107,6 +113,7 @@ Para probar en tu compu: `npm install`, copiá `.env.example` como `.env`, compl
 - `src/catalogo.js` → API pública del catálogo · `catalogo/App.jsx` → la página del catálogo
 - `src/estudio.js` → diseño de carruseles, posts e historias + plan semanal · `src/contenido.js` → API del estudio, publicación en Instagram y programador
 - `contenido/App.jsx` → el estudio de contenido (si lo cambiás: `npm i --no-save esbuild react@18 react-dom@18 && node contenido/build.mjs`)
+- `src/asistente.js` → API del asistente IA · `compartido/Asistente.jsx` → el chat flotante
 - `gestion/iconos.js` → genera los íconos de la app
 
 ---

@@ -82,6 +82,17 @@
     <button class="secundario" id="btnNueva">Nueva conversación</button>
     <div class="error" id="errResponder"></div>
   </section>
+  <details style="margin-top:16px;background:var(--tarjeta);border-radius:14px;padding:16px">
+    <summary style="cursor:pointer;font-weight:600">Activar número de WhatsApp del bot</summary>
+    <p style="color:var(--gris);font-size:14px">Usalo una sola vez, cuando el número figura como <b>Pendiente</b> en WhatsApp Manager. Antes poné su Phone number ID en <code>PHONE_NUMBER_ID</code> en Render.</p>
+    <label for="waPin">PIN de 6 números (inventalo y guardalo: Meta lo pide si volvés a registrar el número)</label>
+    <input id="waPin" inputmode="numeric" maxlength="6" placeholder="Ej: 482913">
+    <label for="waWaba">ID de la cuenta de WhatsApp (WhatsApp Business Account ID)</label>
+    <input id="waWaba" inputmode="numeric" placeholder="Ej: 993438966523365">
+    <button class="principal" id="btnActivarWa">Activar número</button>
+    <div class="error" id="errActivarWa"></div>
+    <div class="caja" id="resActivarWa" hidden></div>
+  </details>
 </main>
 
 <script>
@@ -193,6 +204,27 @@
       $('errResponder').textContent = e.message;
     } finally {
       $('btnResponder').disabled = false;
+    }
+  });
+
+  $('btnActivarWa').addEventListener('click', async () => {
+    $('errActivarWa').textContent = '';
+    $('resActivarWa').hidden = true;
+    $('btnActivarWa').disabled = true;
+    try {
+      const d = await pedir('/api/whatsapp/activar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: $('waPin').value, wabaId: $('waWaba').value }),
+      });
+      const n = d.numero || {};
+      $('resActivarWa').textContent = '✅ ' + d.pasos.join('\n✅ ') +
+        `\n\nNúmero: ${n.display_phone_number || '-'}\nNombre: ${n.verified_name || '-'} (${n.name_status || '-'})\nEstado: ${n.status || '-'}`;
+      $('resActivarWa').hidden = false;
+    } catch (e) {
+      $('errActivarWa').textContent = e.message;
+    } finally {
+      $('btnActivarWa').disabled = false;
     }
   });
 

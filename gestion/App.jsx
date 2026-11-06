@@ -769,7 +769,7 @@ const Instagram = ({ ajustes }) => {
             <button onClick={() => descargarTodo(historias)} style={chipSt(true)}>Guardar las {historias.length}</button>
           </div>
           <div style={{ display: "flex", gap: "10px", overflowX: "auto", paddingBottom: "6px" }}>{historias.map(p => miniatura(p, "240px"))}</div>
-          <p style={{ color: "#6b7280", fontSize: "12px", margin: "6px 0 16px" }}>En la historia 3 agregá el sticker <b>Enlace</b> con tu link de WhatsApp (wa.me/5493585764330).</p>
+          <p style={{ color: "#6b7280", fontSize: "12px", margin: "6px 0 16px" }}>En la historia 3 agregá el sticker <b>Enlace</b> con tu link de WhatsApp (wa.me/5493585178319).</p>
 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "4px 0 8px" }}>
             <span style={sectionLabel}>Carrusel · {carrusel.length} fotos en este orden</span>

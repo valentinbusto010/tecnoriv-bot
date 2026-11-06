@@ -230,6 +230,20 @@ app.use('/api/asistente', require('./src/asistente').router(chequearClave, expli
 
 app.get('/api/estado', chequearClave, async (req, res) => res.json(await estadoCatalogo()));
 
+// Activa el número de WhatsApp del bot (registro con PIN + suscripción de la app a la cuenta)
+app.post('/api/whatsapp/activar', chequearClave, async (req, res) => {
+  const pin = String(req.body.pin || '').trim();
+  const wabaId = String(req.body.wabaId || '').replace(/\D/g, '');
+  if (!/^\d{6}$/.test(pin)) return res.status(400).json({ error: 'El PIN tiene que tener 6 números.' });
+  if (!process.env.PHONE_NUMBER_ID) return res.status(400).json({ error: 'Falta PHONE_NUMBER_ID en Render.' });
+  try {
+    res.json(await wa.activarNumero({ pin, wabaId }));
+  } catch (error) {
+    console.error('Error activando número:', error.response?.data || error.message);
+    res.status(500).json({ error: wa.explicarErrorWA(error) });
+  }
+});
+
 // Crea imagen + título + descripción para publicar en Marketplace
 app.post('/api/publicacion', chequearClave, subida.single('foto'), async (req, res) => {
   try {

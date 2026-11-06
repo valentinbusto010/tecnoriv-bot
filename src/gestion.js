@@ -3,7 +3,7 @@
 const express = require('express');
 const axios = require('axios');
 const { supabase } = require('./datos');
-const { promoVigente, precioPromo, invalidarAjustes } = require('./promo');
+const { promoVigente, precioPromo, precioEfectivo, invalidarAjustes } = require('./promo');
 // (instagram.js se carga recién al generar contenido)
 
 const CATEGORIAS_GASTO = ['Stock', 'Marketing', 'Envíos', 'Operativo', 'Impuestos', 'Otro'];
@@ -123,6 +123,19 @@ async function registrarVenta(telefono, resumen, nombrePerfil) {
       v.monto = precioPromo(v.producto.precio, promo) * v.cantidad;
     }
   }
+  // Beneficio de recompra que le ofrecimos por WhatsApp (va sobre el precio con promo).
+  let beneficio = null;
+  if (v.producto && !v.regalo) {
+    beneficio = await require('./postventa').beneficioDe(telefono).catch(() => null);
+    if (beneficio && beneficio.producto_id === v.producto.id) {
+      const base = promo?.descuento ? precioPromo(v.producto.precio, promo) : Number(v.producto.precio);
+      v.monto = Math.round(base * (1 - beneficio.descuento / 100)) * v.cantidad;
+    } else beneficio = null;
+  }
+  // Pago en efectivo: se registra con el descuento por efectivo (el regalo sigue en $0).
+  if (v.producto && !v.regalo && /efectivo/i.test(v.pago || '')) {
+    v.monto = precioEfectivo(v.monto / v.cantidad) * v.cantidad;
+  }
 
   // Evita cargar dos veces la misma venta si el cliente vuelve a confirmar.
   const hace30 = new Date(Date.now() - 30 * 60 * 1000).toISOString();
@@ -155,6 +168,7 @@ async function registrarVenta(telefono, resumen, nombrePerfil) {
     .select()
     .single();
   if (error) console.error('Error guardando pedido:', error.message);
+  if (data && beneficio) await supabase.from('clientes').update({ beneficio: null }).eq('id', beneficio.cliente_id); // se usa una sola vez
   return { pedido: data || null, duplicado: false, venta: v };
 }
 
@@ -164,6 +178,7 @@ const AYUDA_DUENO = `Comandos:
 • gasto 15000 marketing Meta Ads
 • gasto 35k stock reposición cables
 • resumen → ventas y gastos del mes
+• hoy → el resumen diario completo (ventas de ayer, pendientes, stock, consejo)
 Categorías: ${CATEGORIAS_GASTO.join(', ')}`;
 
 async function cargarGasto(texto) {
@@ -215,6 +230,7 @@ async function comandoDueno(texto) {
   const t = texto.trim();
   if (/^gastos?\s+\S/i.test(t)) return cargarGasto(t);
   if (/^resumen$/i.test(t)) return resumenMes();
+  if (/^(hoy|ok|dale|ver)$/i.test(t)) return require('./postventa').ultimoResumen();
   if (/^(ayuda|comandos)$/i.test(t)) return AYUDA_DUENO;
   return null;
 }
@@ -224,7 +240,11 @@ async function comandoDueno(texto) {
 const AJUSTES_DEFECTO = {
   margen_objetivo: 40, dias_costo_viejo: 30, redondeo_precio: 500,
   promo_descuento: 0, promo_hasta: '', promo_regalo_id: 0, promo_regalo_categoria: 'Wearables',
+  // Automatizaciones (postventa por WhatsApp y resumen diario)
+  postventa_activa: 1, dias_seguimiento: 3, dias_recompra: 35, recompra_descuento: 10, resumen_activo: 1, resumen_hora: 8,
 };
+// Claves internas de "ajustes" que no son configuración del panel
+const AJUSTES_OCULTOS = '(logo_marca,resumen_texto,resumen_ultimo,dueno_ultimo)';
 const AJUSTES_TEXTO = ['promo_hasta', 'promo_regalo_categoria'];
 
 const CAMPOS = {
@@ -249,6 +269,53 @@ function limpiar(tabla, body) {
   return out;
 }
 
+// Guarda un ajuste (margen, promo…) validando el valor. Devuelve la fila guardada.
+async function guardarAjuste(clave, bruto) {
+  if (!(clave in AJUSTES_DEFECTO)) throw new Error('Ajuste desconocido');
+  let valor;
+  if (AJUSTES_TEXTO.includes(clave)) {
+    valor = String(bruto ?? '').trim();
+    if (clave === 'promo_hasta' && valor && !/^\d{4}-\d{2}-\d{2}$/.test(valor)) throw new Error('Fecha inválida');
+  } else {
+    valor = Number(bruto);
+    if (!Number.isFinite(valor) || valor < 0 || (clave === 'promo_descuento' && valor > 90)) throw new Error('Valor inválido');
+  }
+  invalidarAjustes();
+  const { data, error } = await supabase.from('ajustes').upsert({ clave, valor }, { onConflict: 'clave' }).select().single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+// Pedido cargado a mano (panel o asistente): resuelve el producto y el cliente. Devuelve { data, error }.
+async function crearPedido(body) {
+  const p = limpiar('pedidos', body);
+  if (p.producto_id) {
+    const { data: prod } = await supabase.from('productos').select('nombre').eq('id', p.producto_id).maybeSingle();
+    if (prod) p.producto = prod.nombre;
+  }
+  if (!p.cliente_id && p.cliente) {
+    const tel = (p.telefono || '').replace(/\D/g, '') || null;
+    const { data: c } = tel
+      ? await supabase.from('clientes').select('id').eq('telefono', tel).maybeSingle()
+      : await supabase.from('clientes').select('id').ilike('nombre', p.cliente).is('telefono', null).maybeSingle();
+    if (c) p.cliente_id = c.id;
+    else {
+      const { data: nuevo } = await supabase.from('clientes').insert({ nombre: p.cliente, telefono: tel, origen: p.canal || 'Panel' }).select('id').single();
+      p.cliente_id = nuevo?.id || null;
+    }
+    p.telefono = tel;
+  }
+  return supabase.from('pedidos').insert({ ...p, origen: 'panel' }).select().single();
+}
+
+// Suma o resta stock sin bajar de 0. Devuelve { data, error }.
+async function ajustarStock(id, delta) {
+  const { data: prod, error } = await supabase.from('productos').select('stock').eq('id', id).single();
+  if (error) return { error };
+  const stock = Math.max(0, prod.stock + (Number(delta) || 0));
+  return supabase.from('productos').update({ stock }).eq('id', id).select().single();
+}
+
 function router(chequearClave, explicarError = (e) => e.message) {
   const r = express.Router();
   r.use(chequearClave);
@@ -269,24 +336,14 @@ function router(chequearClave, explicarError = (e) => e.message) {
       return res.status(500).json({ error: falta ? `Falta correr supabase-gestion.sql en Supabase (${error.message})` : error.message });
     }
     // Ajustes del margen: si todavía no se corrió supabase-margen.sql, usa los valores por defecto.
-    const aj = await supabase.from('ajustes').select('clave, valor');
+    const aj = await supabase.from('ajustes').select('clave, valor').not('clave', 'in', AJUSTES_OCULTOS);
     const ajustes = { ...AJUSTES_DEFECTO, ...Object.fromEntries((aj.data || []).map((a) => [a.clave, AJUSTES_TEXTO.includes(a.clave) ? String(a.valor ?? '') : Number(a.valor)])) };
     res.json({ productos: productos.data, pedidos: pedidos.data, gastos: gastos.data, clientes: clientes.data, ajustes, faltaMargen: Boolean(aj.error) });
   });
 
   r.put('/ajustes/:clave', async (req, res) => {
-    const { clave } = req.params;
-    if (!(clave in AJUSTES_DEFECTO)) return res.status(400).json({ error: 'Ajuste desconocido' });
-    let valor;
-    if (AJUSTES_TEXTO.includes(clave)) {
-      valor = String(req.body.valor ?? '').trim();
-      if (clave === 'promo_hasta' && valor && !/^\d{4}-\d{2}-\d{2}$/.test(valor)) return res.status(400).json({ error: 'Fecha inválida' });
-    } else {
-      valor = Number(req.body.valor);
-      if (!Number.isFinite(valor) || valor < 0 || (clave === 'promo_descuento' && valor > 90)) return res.status(400).json({ error: 'Valor inválido' });
-    }
-    invalidarAjustes();
-    responder(res, await supabase.from('ajustes').upsert({ clave, valor }, { onConflict: 'clave' }).select().single());
+    try { res.json(await guardarAjuste(req.params.clave, req.body.valor)); }
+    catch (e) { res.status(400).json({ error: e.message }); }
   });
 
   // ── Publicaciones de Marketplace ──
@@ -390,34 +447,10 @@ function router(chequearClave, explicarError = (e) => e.message) {
   });
 
   // Pedido cargado a mano: resuelve el producto y el cliente.
-  r.post('/pedidos', async (req, res) => {
-    const p = limpiar('pedidos', req.body);
-    if (p.producto_id) {
-      const { data: prod } = await supabase.from('productos').select('nombre').eq('id', p.producto_id).maybeSingle();
-      if (prod) p.producto = prod.nombre;
-    }
-    if (!p.cliente_id && p.cliente) {
-      const tel = (p.telefono || '').replace(/\D/g, '') || null;
-      const { data: c } = tel
-        ? await supabase.from('clientes').select('id').eq('telefono', tel).maybeSingle()
-        : await supabase.from('clientes').select('id').ilike('nombre', p.cliente).is('telefono', null).maybeSingle();
-      if (c) p.cliente_id = c.id;
-      else {
-        const { data: nuevo } = await supabase.from('clientes').insert({ nombre: p.cliente, telefono: tel, origen: p.canal || 'Panel' }).select('id').single();
-        p.cliente_id = nuevo?.id || null;
-      }
-      p.telefono = tel;
-    }
-    responder(res, await supabase.from('pedidos').insert({ ...p, origen: 'panel' }).select().single());
-  });
+  r.post('/pedidos', async (req, res) => responder(res, await crearPedido(req.body)));
 
   // Ajuste +/- de stock desde el panel.
-  r.post('/productos/:id/stock', async (req, res) => {
-    const { data: prod, error } = await supabase.from('productos').select('stock').eq('id', req.params.id).single();
-    if (error) return res.status(400).json({ error: error.message });
-    const stock = Math.max(0, prod.stock + (Number(req.body.delta) || 0));
-    responder(res, await supabase.from('productos').update({ stock }).eq('id', req.params.id).select().single());
-  });
+  r.post('/productos/:id/stock', async (req, res) => responder(res, await ajustarStock(req.params.id, req.body.delta)));
 
   for (const tabla of Object.keys(CAMPOS)) {
     if (tabla !== 'pedidos') {
@@ -431,4 +464,7 @@ function router(chequearClave, explicarError = (e) => e.message) {
   return r;
 }
 
-module.exports = { registrarContacto, registrarVenta, parsearVenta, comandoDueno, esDueno, router, fmt, margenReal };
+module.exports = {
+  registrarContacto, registrarVenta, parsearVenta, comandoDueno, esDueno, router, fmt, margenReal,
+  limpiar, crearPedido, ajustarStock, guardarAjuste, cargarGasto, hoyAR, CATEGORIAS_GASTO, ESTADOS, AJUSTES_DEFECTO,
+};

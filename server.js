@@ -7,33 +7,22 @@ const { responderCliente } = require('./src/vendedor');
 const { crearPublicacion } = require('./src/publicacion');
 const { estadoCatalogo, obtenerHistorial, guardarMensaje } = require('./src/datos');
 const gestion = require('./src/gestion');
+const contenido = require('./src/contenido');
+const catalogo = require('./src/catalogo');
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '2mb' })); // 2 MB: alcanza para subir el logo de la marca
 const subida = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
 
 const { WHATSAPP_TOKEN, PHONE_NUMBER_ID, VERIFY_TOKEN, OWNER_PHONE, PANEL_PASSWORD } = process.env;
 
 // ================= WhatsApp =================
 
-async function enviarWhatsApp(to, body) {
-  // Argentina: Meta manda los celulares como 549XXXXXXXXXX, pero para enviar hay que sacar el 9
-  to = String(to).replace(/^549/, '54');
-  await axios.post(
-    `https://graph.facebook.com/v21.0/${PHONE_NUMBER_ID}/messages`,
-    { messaging_product: 'whatsapp', to, type: 'text', text: { body } },
-    { headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}`, 'Content-Type': 'application/json' } }
-  );
-}
-
-async function enviarImagen(to, link, caption) {
-  to = String(to).replace(/^549/, '54');
-  await axios.post(
-    `https://graph.facebook.com/v21.0/${PHONE_NUMBER_ID}/messages`,
-    { messaging_product: 'whatsapp', to, type: 'image', image: { link, caption } },
-    { headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}`, 'Content-Type': 'application/json' } }
-  );
-}
+// Envío por WhatsApp (src/whatsapp.js). Texto libre: solo dentro de las 24 h desde el último mensaje de la persona.
+const wa = require('./src/whatsapp');
+const postventa = require('./src/postventa');
+const enviarWhatsApp = (to, body) => wa.enviarTexto(to, body);
+const enviarImagen = (to, link, caption) => wa.enviarImagen(to, link, caption);
 
 app.get('/webhook', (req, res) => {
   if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === VERIFY_TOKEN) {
@@ -68,6 +57,10 @@ app.post('/webhook', async (req, res) => {
 
   try {
     if (req.body.object !== 'whatsapp_business_account') return;
+    // Estados de mensajes enviados: si una plantilla o un aviso falla, queda registrado en /gestion.
+    for (const st of req.body.entry?.[0]?.changes?.[0]?.value?.statuses || []) {
+      await postventa.registrarEstado(st).catch(() => {});
+    }
     const message = req.body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
     if (!message || procesados.has(message.id)) return;
     procesados.add(message.id);
@@ -77,6 +70,7 @@ app.post('/webhook', async (req, res) => {
     const nombrePerfil = req.body.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.profile?.name || null;
 
     // Comandos del dueño (gasto, resumen, ayuda): se responden sin pasar por la IA.
+    if (gestion.esDueno(from)) postventa.duenoEscribio(); // abre la ventana de 24 h para el resumen completo
     if (message.type === 'text' && gestion.esDueno(from)) {
       const respuesta = await gestion.comandoDueno(message.text.body).catch((e) => `Error: ${e.message}`);
       if (respuesta) {
@@ -87,6 +81,17 @@ app.post('/webhook', async (req, res) => {
 
     // Todo el que escribe queda como cliente en el sistema de gestión.
     await gestion.registrarContacto(from, nombrePerfil).catch((e) => console.error('Error registrando cliente:', e.message));
+
+    // "BAJA": deja de recibir ofertas automáticas.
+    if (message.type === 'text') {
+      const baja = await postventa.procesarBaja(from, message.text.body).catch(() => null);
+      if (baja) {
+        await enviarWhatsApp(from, baja);
+        await guardarMensaje(from, 'user', message.text.body);
+        await guardarMensaje(from, 'assistant', baja);
+        return;
+      }
+    }
 
     // Audios, stickers, ubicaciones, etc.: respuesta fija, sin gastar IA.
     if (message.type !== 'text' && message.type !== 'image') {
@@ -115,7 +120,8 @@ app.post('/webhook', async (req, res) => {
 
     const historial = await obtenerHistorial(from);
     await guardarMensaje(from, 'user', text);
-    const { texto, ventas, humano, fotos } = await responderCliente([...historial, { role: 'user', content: text }], imagen);
+    const extra = await postventa.contextoCliente(from).catch(() => '');
+    const { texto, ventas, humano, fotos } = await responderCliente([...historial, { role: 'user', content: text }], imagen, extra);
 
     for (const foto of fotos) {
       await enviarImagen(from, foto.url, foto.nombre).catch((e) =>
@@ -202,6 +208,26 @@ app.get('/gestion-sw.js', (req, res) => {
 app.use('/app', express.static(path.join(__dirname, 'public', 'app'), { maxAge: '7d' }));
 app.use('/api/gestion', gestion.router(chequearClave, explicarError));
 
+// Catálogo público para clientes (sin contraseña): productos y precios en vivo
+app.get('/catalogo', (req, res) => res.sendFile(path.join(__dirname, 'public', 'catalogo.html')));
+app.get('/catalogo.js', (req, res) => res.sendFile(path.join(__dirname, 'public', 'catalogo.js')));
+app.get('/api/catalogo', catalogo.api);
+
+// Estudio de contenido: carruseles, posts, historias y Marketplace (app aparte, misma contraseña)
+app.get('/contenido', (req, res) => res.sendFile(path.join(__dirname, 'public', 'contenido.html')));
+app.get('/contenido.js', (req, res) => res.sendFile(path.join(__dirname, 'public', 'contenido.js')));
+app.get('/contenido-sw.js', (req, res) => {
+  res.set('Cache-Control', 'no-cache');
+  res.sendFile(path.join(__dirname, 'public', 'contenido-sw.js'));
+});
+app.get('/contenido/img/:clave.jpg', contenido.imagenPublica);
+app.get('/marca/logo', contenido.logoPublico);
+app.use('/api/contenido', contenido.router(chequearClave, explicarError));
+// Asistente IA (chat con datos reales + acciones con confirmación), compartido por /gestion y /contenido
+// Automatizaciones: postventa por WhatsApp y resumen diario
+app.use('/api/auto', postventa.router(chequearClave, explicarError));
+app.use('/api/asistente', require('./src/asistente').router(chequearClave, explicarError));
+
 app.get('/api/estado', chequearClave, async (req, res) => res.json(await estadoCatalogo()));
 
 // Crea imagen + título + descripción para publicar en Marketplace
@@ -248,7 +274,9 @@ app.post('/api/responder', chequearClave, async (req, res) => {
 app.get('/privacidad', (req, res) => res.sendFile(path.join(__dirname, 'public', 'privacidad.html')));
 app.get('/eliminar-datos', (req, res) => res.sendFile(path.join(__dirname, 'public', 'eliminar-datos.html')));
 
-app.get('/', (req, res) => res.send('TecnoRiv Bot activo! Panel en /panel · Gestión en /gestion'));
+app.get('/', (req, res) => res.send('TecnoRiv Bot activo! Panel en /panel · Gestión en /gestion · Contenido en /contenido · Catálogo en /catalogo'));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Servidor corriendo en puerto ${PORT}`));
+contenido.iniciarProgramador(avisarDueno);
+postventa.iniciar();

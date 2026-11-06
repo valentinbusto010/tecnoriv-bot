@@ -8,6 +8,8 @@ Sistema para vender más con menos trabajo manual:
 | **Responde consultas de Marketplace**: pegás el mensaje del cliente y te da la respuesta lista para copiar | Panel → pestaña 2 |
 | **Atiende WhatsApp solo, 24/7**: responde, recuerda la charla, cierra la venta y te avisa | Automático |
 | **Sistema de gestión**: clientes, pedidos, stock y finanzas. Las ventas del bot entran solas | `/gestion` |
+| **Catálogo para clientes**: productos y precios en vivo, el cliente arma su pedido y lo manda por WhatsApp | `/catalogo` (público) |
+| **Estudio de contenido**: carruseles, posts, historias y Marketplace con tu marca. Plan semanal, calendario y publicación en Instagram | `/contenido` |
 
 > **Importante sobre Marketplace:** Facebook no permite que un programa publique ni chatee solo en Marketplace. Si se usa un bot para eso, te bloquean la cuenta. Por eso el sistema te deja **todo listo** (imagen, título, descripción y respuestas) y vos solo copiás y pegás: 1 minuto por producto. En **WhatsApp** sí está permitido, y ahí el bot trabaja 100% solo.
 
@@ -46,6 +48,45 @@ Entrá a `https://TU-SERVIDOR/gestion` (misma contraseña que el panel). Funcion
 
 **Marketplace desde el sistema:** en Stock tocá el 📣 de un producto (o el botón **Marketplace**) y se genera la imagen con tu marca, el título y la descripción usando la foto del producto. Quedan guardadas: desde el celu descargás la imagen y copiás los textos para publicar.
 
+### Catálogo para clientes (`/catalogo`)
+Página pública (sin contraseña) para compartir en la bio de Instagram, estados de WhatsApp y Marketplace: `https://TU-SERVIDOR/catalogo`.
+- Lee la misma tabla `productos` que el bot y `/gestion`: si cambiás un precio, el stock o una foto, el catálogo se actualiza solo (cada 60 s y al volver a la pestaña).
+- Muestra nombre, foto, precio (con la promo aplicada si hay), cuotas y estado: disponible, **últimas unidades** (stock ≤ alerta) o **agotado**. **Nunca** muestra costos, márgenes ni el stock exacto. Los productos ocultos al bot (`activo = false`) no aparecen.
+- El cliente agrega productos y toca **Pedir por WhatsApp**: se abre el chat con la lista, cantidades y total. Número: `whatsapp` de `src/negocio.js`, o `WHATSAPP_PEDIDOS` en Render si querés que los pedidos vayan a otro número (por ejemplo, al del bot).
+- Para cambiarlo: `catalogo/App.jsx` y después `node catalogo/build.mjs`.
+
+### Estudio de contenido (`/contenido`)
+App aparte (misma contraseña) para hacer y publicar todo el contenido de Instagram y Marketplace con los colores y el formato de @tecno_riv.
+- **Inicio:** cuánto publicaste en la semana (meta: 5), qué toca hoy, días sin contenido y el **Plan de la semana**: 7 ideas armadas con tu stock real. Tocás "Crear esto" y queda todo cargado.
+- **Crear:** elegís formato (**Carrusel** 6-9 slides, **Post**, **Historias**, **Marketplace**), plantilla (**Producto destacado, Colección, Comparativa, Tips/Educativo, Promo, Libre**), los productos y, si querés, la idea. Claude escribe los textos y el sistema dibuja las imágenes con las fotos reales, los precios de la base (con promo si hay) y el caption con hashtags. Podés dejarlo programado en el mismo paso.
+- **Biblioteca:** todas las piezas con su estado (borrador / programado / publicado). Adentro de cada una: guardar todas las imágenes, copiar el caption, **editar los textos de cada slide y rehacer las imágenes**, programar, publicar o marcar como publicada.
+- **Calendario:** los próximos 14 días con lo programado y lo publicado. "+ Crear" en cualquier día.
+- **Publicar en Instagram solo (opcional):** cargá `IG_TOKEN` en Render (la cuenta de Instagram y la dirección del servidor se detectan solas). Con eso aparece "Publicar ahora en Instagram" y lo programado se publica solo a la hora elegida (te avisa por WhatsApp). Sin esas variables funciona en modo manual: a la hora programada te llega un WhatsApp "📅 Hoy toca publicar…" y desde el celu guardás las imágenes y copiás el caption.
+- **Marketplace** siempre es manual (Facebook no lo permite automático): imagen + título + descripción listos para copiar.
+- Instalala como app aparte desde `/contenido` → **App**.
+
+### Asistente IA (en /gestion y /contenido)
+Botón **✨ Asistente IA** abajo a la derecha. Ve en vivo tu stock, ventas (120 días), gastos, clientes y contenido, y calcula los totales exactos.
+- **Preguntale:** "¿cómo vengo este mes?", "¿qué tengo que reponer?", "¿cuál es mi producto más rentable?", "¿qué compró Juan?".
+- **Pedile cambios:** cargar venta o gasto, sumar/restar stock, cambiar precio/costo, pausar o crear productos, configurar la promo, crear o programar contenido. Te muestra una tarjeta y **no cambia nada hasta que tocás Confirmar**.
+- Se puede dictar con el micrófono. Usa la misma `CLAUDE_API_KEY` (cada mensaje cuesta unos centavos de dólar).
+
+### Postventa y resumen diario por WhatsApp (en /gestion → Clientes → Automatizaciones)
+- **Seguimiento:** a los 3 días de marcar un pedido como **entregado**, el bot le escribe "¿Cómo te está funcionando tu…?". Si está conforme, le pide que te etiquete en Instagram; si tiene un problema, te lo deriva.
+- **Oferta de recompra:** a los 35 días le ofrece un accesorio que combina con lo que compró (malla/hidrogel para smartwatch, MagSafe para quien compró funda, etc.) con 10% OFF por 7 días. Si lo compra por el bot, el descuento se aplica solo. Quien responde **BAJA** no recibe más ofertas.
+- **Resumen diario** a tu WhatsApp a las 8: ventas de ayer y del mes, pendientes, stock bajo, contenido del día y un consejo de la IA. Respondé **hoy** para verlo completo cuando llega por plantilla.
+- Días, % de descuento y hora se cambian desde el panel. Solo escribe a clientes de lunes a sábado de 10 a 20 h. Los pedidos que ya estaban entregados antes de activar esto no reciben mensajes.
+
+**Plantillas (obligatorias, una sola vez):** WhatsApp solo deja mandar texto libre a quien te escribió en las últimas 24 h. Para el resto hay que crear 3 plantillas en **business.facebook.com → WhatsApp Manager → Plantillas de mensajes → Crear plantilla**, idioma **Español (ARG)**, con estos nombres y textos exactos:
+
+| Nombre | Categoría | Texto |
+|---|---|---|
+| `tr_seguimiento` | Utilidad | `Hola {{1}}! Te escribimos de Tecno Riv 👋 ¿Cómo te está funcionando tu {{2}}? Si tenés alguna duda o algo no anda bien, respondé este mensaje y te ayudamos.` |
+| `tr_recompra` | Marketing | `Hola {{1}}! Como compraste {{2}} en Tecno Riv, te guardamos un beneficio: {{3}}, {{4}}% OFF hasta el {{5}}. ¿Te lo reservamos? Respondé este mensaje. Si no querés recibir más ofertas, respondé BAJA.` |
+| `tr_resumen` | Utilidad | `Buen día! Tu resumen de Tecno Riv: {{1}}. Respondé HOY para ver el detalle completo.` |
+
+Ejemplos para la revisión de Meta: {{1}} Juan · {{2}} Smartwatch D20 · {{3}} Malla para smartwatch a $3.149 (antes $3.499) · {{4}} 10 · {{5}} 12/11. Para el resumen: ayer $45.000 (2 pedidos) · mes $380.000 · 1 pendientes · 3 productos con stock bajo. Si usás otro idioma, cargá `WA_IDIOMA_PLANTILLAS` en Render (ej. `es`). Correr también `supabase-postventa.sql`.
+
 **Instalarla como app:** abrí `/gestion` y tocá **Instalar app** arriba a la derecha (Chrome en PC y Android). En iPhone: Safari → Compartir → Agregar a inicio.
 
 **Desde tu WhatsApp** (el número de `OWNER_PHONE`), mandale al bot:
@@ -63,7 +104,7 @@ Editá el archivo `src/negocio.js`.
 
 ## Instalación (una sola vez)
 
-1. **Supabase:** abrí tu proyecto → **SQL Editor** → pegá el contenido de `supabase.sql` → **Run**. Después corré también `supabase-gestion.sql`, `supabase-margen.sql`, `supabase-publicaciones.sql` y `supabase-instagram.sql` (agrega clientes, gastos y el stock automático; se puede correr más de una vez). Cargá tus productos reales en la tabla `productos` o desde `/gestion`.
+1. **Supabase:** abrí tu proyecto → **SQL Editor** → pegá el contenido de `supabase.sql` → **Run**. Después corré también `supabase-gestion.sql`, `supabase-margen.sql`, `supabase-publicaciones.sql`, `supabase-instagram.sql`, `supabase-contenido.sql` y `supabase-postventa.sql` (agrega clientes, gastos y el stock automático; se puede correr más de una vez). Cargá tus productos reales en la tabla `productos` o desde `/gestion`.
 2. **Variables:** en tu hosting (Render, Railway, etc.) cargá las variables de `.env.example`:
    - `CLAUDE_API_KEY`, `WHATSAPP_TOKEN`, `PHONE_NUMBER_ID`, `VERIFY_TOKEN`, `SUPABASE_URL`, `SUPABASE_KEY` (las mismas que ya usabas)
    - **Nuevas:** `OWNER_PHONE` (tu número para los avisos de venta, ej `5493584123456`) y `PANEL_PASSWORD` (inventá una contraseña).
@@ -83,6 +124,25 @@ Para probar en tu compu: `npm install`, copiá `.env.example` como `.env`, compl
 - `public/panel.html` → el panel de Marketplace
 - `src/gestion.js` → ventas, clientes, gastos y la API del sistema de gestión
 - `gestion/App.jsx` → el sistema de gestión (si lo cambiás: `npm i --no-save esbuild react@18 react-dom@18 && node gestion/build.mjs`)
-- `supabase.sql` + `supabase-gestion.sql` + `supabase-margen.sql` + `supabase-publicaciones.sql` + `supabase-instagram.sql` → tablas de la base de datos
+- `supabase.sql` + `supabase-gestion.sql` + `supabase-margen.sql` + `supabase-publicaciones.sql` + `supabase-instagram.sql` + `supabase-contenido.sql` → tablas de la base de datos
 - `src/promo.js` → promo vigente · `src/instagram.js` → historias y carrusel
+- `src/catalogo.js` → API pública del catálogo · `catalogo/App.jsx` → la página del catálogo
+- `src/estudio.js` → diseño de carruseles, posts e historias + plan semanal · `src/contenido.js` → API del estudio, publicación en Instagram y programador
+- `contenido/App.jsx` → el estudio de contenido (si lo cambiás: `npm i --no-save esbuild react@18 react-dom@18 && node contenido/build.mjs`)
+- `src/postventa.js` → seguimiento, oferta de recompra y resumen diario · `src/whatsapp.js` → envío por WhatsApp (texto y plantillas)
+- `src/asistente.js` → API del asistente IA · `compartido/Asistente.jsx` → el chat flotante
 - `gestion/iconos.js` → genera los íconos de la app
+
+---
+
+## Conectar Instagram para que publique solo (opcional)
+
+1. Instagram **profesional** (Empresa o Creador) y **vinculado a la página de Facebook Tecno Riv**: en Meta Business Suite → Configuración → Cuentas de Instagram → Conectar.
+2. En [developers.facebook.com](https://developers.facebook.com) → tu app (la de WhatsApp sirve) → **Casos de uso** → agregá "Administrar mensajes y contenido en Instagram" (API de Instagram con inicio de sesión de Facebook).
+3. En [business.facebook.com/settings](https://business.facebook.com/settings) → **Usuarios del sistema** → tu usuario (o creá uno *Administrador*) → **Asignar activos**: la página Tecno Riv, la cuenta de Instagram y la app, con control total.
+4. **Generar token** → elegí la app → caducidad **Nunca** → permisos `instagram_basic`, `instagram_content_publish`, `pages_show_list`, `pages_read_engagement` y `business_management`. Ese es `IG_TOKEN`.
+5. Cargalo en Render → Environment → `IG_TOKEN`. En `/contenido` arriba tiene que aparecer **● @tecno_riv** en verde. Si sale **IG con error**, el mensaje en Inicio dice qué falta.
+
+Opcionales: `IG_USER_ID` (si tenés varias cuentas y querés fijar una) y `PUBLIC_URL` (Render ya la define sola).
+
+> Si el hosting se duerme (plan gratis de Render), la publicación programada sale cuando el servidor se despierta. Para que salga puntual, usá un plan que no duerma o un ping cada 10 minutos (ej. cron-job.org a `/`).

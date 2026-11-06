@@ -10,5 +10,8 @@ module.exports = {
   // Datos para transferencias. El cliente paga cuando recibe el producto.
   transferencia: { alias: 'valentinbusto04', titular: 'Leandro Valentín Busto', banco: 'Mercado Pago' },
   garantia: 'Garantía de 30 días',
+  // Descuento pagando en efectivo (%). Se aplica sobre el precio que ve el cliente (incluida la promo, si hay).
+  // Lo usan el catálogo, el bot y el registro de ventas. Poné 0 para sacarlo.
+  descuentoEfectivo: 10,
   horario: 'Lunes a sábado de 9 a 20 hs',
 };

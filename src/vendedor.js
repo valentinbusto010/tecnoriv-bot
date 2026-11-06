@@ -1,7 +1,7 @@
 const negocio = require('./negocio');
 const { responderChat } = require('./claude');
 const { obtenerProductos, obtenerFaqs } = require('./datos');
-const { promoVigente, precioPromo, fechaCorta } = require('./promo');
+const { promoVigente, precioPromo, precioEfectivo, fechaCorta } = require('./promo');
 
 function formatearPrecio(n) {
   return '$' + Math.round(Number(n)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
@@ -11,8 +11,12 @@ async function armarInstrucciones(productos) {
   const [faqs, promo] = await Promise.all([obtenerFaqs(), promoVigente()]);
   const regalo = promo?.regaloId ? productos.find((p) => p.id === promo.regaloId) : null;
   const hayRegalo = Boolean(regalo && regalo.stock > 0);
-  const precioTxt = (p) =>
-    promo && promo.descuento ? `${formatearPrecio(p.precio)} → PROMO ${formatearPrecio(precioPromo(p.precio, promo))}` : formatearPrecio(p.precio);
+  const dEfectivo = Number(negocio.descuentoEfectivo) || 0;
+  const precioTxt = (p) => {
+    const base = promo && promo.descuento ? precioPromo(p.precio, promo) : Number(p.precio);
+    const txt = promo && promo.descuento ? `${formatearPrecio(p.precio)} → PROMO ${formatearPrecio(base)}` : formatearPrecio(base);
+    return dEfectivo ? `${txt} (efectivo ${formatearPrecio(precioEfectivo(base))})` : txt;
+  };
 
   const catalogo = productos.length
     ? productos
@@ -33,7 +37,7 @@ PROMO VIGENTE (hasta el ${fechaCorta(promo.hasta)} inclusive):${promo.descuento 
 - REGALO: con cada producto de la categoría ${promo.regaloCategoria}, el cliente se lleva de regalo 1 ${regalo.nombre} (hasta agotar stock). Mencionalo cuando cotices uno de esos productos, es un gancho de venta.
 - En el cierre de una venta que lleva regalo, agregá una marca extra para el regalo con la palabra REGALO en el precio: [VENTA: ${regalo.nombre} | 1 | REGALO | nombre | entrega | pago]
 - A quien recibe ${regalo.nombre} de regalo no se lo ofrezcas como complemento pago.` : ''}
-- La promo no se suma con otros descuentos: no inventes descuentos extra.
+- La promo solo se suma con el descuento por pago en efectivo: no inventes otros descuentos.
 `;
 
   return `Sos el vendedor de ${negocio.nombre}, tienda de tecnología de ${negocio.ciudad} (Instagram ${negocio.instagram}).
@@ -80,6 +84,11 @@ MANDAR FOTOS: si el cliente pregunta por un producto concreto que en el catálog
 
 FOTOS DEL CLIENTE: si el cliente manda una foto, identificá qué producto es y buscá el más parecido en el catálogo. Si no lo tenemos, decilo y ofrecé una alternativa. Si no se entiende la foto, preguntá qué producto busca.
 
+POSTVENTA: si en la conversación hay un mensaje nuestro preguntando cómo le funciona su compra:
+- Si el cliente está conforme: agradecé en una línea y pedile, sin insistir, que nos etiquete en una historia de Instagram (${negocio.instagram}) o nos recomiende con alguien. Una sola vez.
+- Si cuenta un problema con el producto: pedí un detalle breve (y una foto si sirve) y derivá con [HUMANO: problema postventa con <producto>].
+Si hay un mensaje nuestro ofreciendo un beneficio y el cliente lo quiere, seguí el proceso de venta normal con el precio del beneficio.
+
 PASAR CON UNA PERSONA: en estos casos decile al cliente que lo pasás con alguien del equipo que le responde enseguida, y agregá al final de tu mensaje exactamente [HUMANO: motivo corto]:
 - Pide hablar con una persona.
 - Reclamo, producto fallado, garantía o devolución.
@@ -96,7 +105,8 @@ REGLAS:
 - Fuera de horario (${negocio.horario}), respondé igual y avisá que la entrega o el retiro se coordina dentro del horario.
 
 DATOS DEL NEGOCIO:
-- Medios de pago: ${negocio.mediosDePago}
+- Medios de pago: ${negocio.mediosDePago}${dEfectivo ? `
+- DESCUENTO EN EFECTIVO: pagando en efectivo hay ${dEfectivo}% OFF. En el catálogo cada precio trae entre paréntesis el precio en efectivo. Cuando cotices, mencioná los dos (ej: "$12.000, o $10.800 pagando en efectivo"). Si el cliente elige efectivo, el total y la marca [VENTA] van con el precio en efectivo.` : ''}
 - Envíos: ${negocio.envios}
 - Garantía: ${negocio.garantia}
 - Horario: ${negocio.horario}
@@ -115,16 +125,18 @@ function ordenarHistorial(historial) {
     if (ultimo && ultimo.role === m.role) ultimo.content += '\n' + m.content;
     else limpio.push({ role: m.role, content: m.content });
   }
-  while (limpio.length && limpio[0].role !== 'user') limpio.shift();
+  // Si arranca con un mensaje nuestro (ej. seguimiento postventa), se conserva para que el bot sepa de qué habla el cliente.
+  if (limpio.length && limpio[0].role !== 'user') limpio.unshift({ role: 'user', content: '[Conversación anterior del cliente: no disponible]' });
   return limpio;
 }
 
 // historial: [{role:'user'|'assistant', content}] terminando en el mensaje del cliente.
 // imagen (opcional): { base64, mimeType } de una foto que mandó el cliente en el último mensaje.
 // Devuelve { texto, venta, humano, fotos }: venta si el cliente confirmó la compra, humano si hay que derivarlo.
-async function responderCliente(historial, imagen = null) {
+// extra (opcional): contexto de este cliente (ej. un beneficio de recompra vigente).
+async function responderCliente(historial, imagen = null, extra = '') {
   const productos = await obtenerProductos();
-  const system = await armarInstrucciones(productos);
+  const system = (await armarInstrucciones(productos)) + (extra || '');
   const mensajes = ordenarHistorial(historial);
 
   if (imagen && mensajes.length) {

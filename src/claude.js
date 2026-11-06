@@ -3,14 +3,14 @@ const axios = require('axios');
 const MODELO_CHAT = 'claude-haiku-5-5'; // rápido y barato para responder clientes
 const MODELO_TEXTOS = 'claude-sonnet-5-5'; // mejor redacción para publicaciones
 
-async function llamarClaude(body) {
+async function llamarClaude(body, timeout = 60000) {
   const res = await axios.post('https://api.anthropic.com/v1/messages', body, {
     headers: {
       'x-api-key': process.env.CLAUDE_API_KEY,
       'anthropic-version': '2023-06-01',
       'Content-Type': 'application/json',
     },
-    timeout: 60000,
+    timeout,
   });
   return res.data;
 }
@@ -46,4 +46,4 @@ async function generarEstructurado(system, prompt, schema) {
   return JSON.parse(textoDe(data));
 }
 
-module.exports = { responderChat, generarEstructurado };
+module.exports = { responderChat, generarEstructurado, llamarClaude, MODELO_TEXTOS };

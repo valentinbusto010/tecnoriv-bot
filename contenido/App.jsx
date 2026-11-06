@@ -519,7 +519,7 @@ const Detalle = ({ id, datos, onClose, onCambio }) => {
         </div>
         <textarea value={caption} onChange={e => setCaption(e.target.value)} rows={7} style={{ ...fieldSt, fontSize: "14px", color: "#d1d5db", resize: "vertical", marginBottom: "14px" }} />
       </>}
-      {p.formato === "historias" && <p style={{ color: "#6b7280", fontSize: "12px", margin: "0 0 14px" }}>Subilas en orden. En la última agregá el sticker <b>Enlace</b> con tu WhatsApp (wa.me/5493585764330).</p>}
+      {p.formato === "historias" && <p style={{ color: "#6b7280", fontSize: "12px", margin: "0 0 14px" }}>Subilas en orden. En la última agregá el sticker <b>Enlace</b> con tu WhatsApp (wa.me/5493585178319).</p>}
 
       {!esMkp && p.guion?.slides && <div style={{ marginBottom: "14px" }}>
         {!editar ? <button onClick={() => setEditar(JSON.parse(JSON.stringify(p.guion.slides)))} style={chipSt(false)}><Icon name="edit" size={12} /> Editar textos de las imágenes</button> : (

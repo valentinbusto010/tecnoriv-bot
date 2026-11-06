@@ -43,4 +43,23 @@ function explicarErrorWA(e) {
   return msg;
 }
 
-module.exports = { enviarTexto, enviarImagen, enviarPlantilla, explicarErrorWA, destino };
+// Activa un número nuevo en la API de WhatsApp (el paso que deja de mostrar "Pendiente" en WhatsApp Manager):
+// 1) lo registra con un PIN de 6 dígitos, 2) suscribe la app a la cuenta para recibir mensajes, 3) devuelve su estado.
+async function activarNumero({ pin, wabaId }) {
+  const base = 'https://graph.facebook.com/v21.0';
+  const pasos = [];
+  await axios.post(`${base}/${process.env.PHONE_NUMBER_ID}/register`, { messaging_product: 'whatsapp', pin }, { headers: headers(), timeout: 20000 });
+  pasos.push('Número registrado en la API');
+  if (wabaId) {
+    await axios.post(`${base}/${wabaId}/subscribed_apps`, {}, { headers: headers(), timeout: 20000 });
+    pasos.push('App suscripta a la cuenta de WhatsApp (recibe los mensajes)');
+  }
+  const { data } = await axios.get(`${base}/${process.env.PHONE_NUMBER_ID}`, {
+    headers: headers(),
+    params: { fields: 'display_phone_number,verified_name,name_status,status,quality_rating' },
+    timeout: 20000,
+  });
+  return { pasos, numero: data };
+}
+
+module.exports = { enviarTexto, enviarImagen, enviarPlantilla, explicarErrorWA, destino, activarNumero };

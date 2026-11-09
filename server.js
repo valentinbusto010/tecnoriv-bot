@@ -260,6 +260,7 @@ app.get('/catalogo/meta.csv', catalogo.feedMeta);
 // Estudio de contenido: carruseles, posts, historias y Marketplace (app aparte, misma contraseña)
 app.get('/contenido', (req, res) => res.sendFile(path.join(__dirname, 'public', 'contenido.html')));
 app.get('/contenido.js', (req, res) => res.sendFile(path.join(__dirname, 'public', 'contenido.js')));
+app.get('/contenido-videos.js', (req, res) => res.sendFile(path.join(__dirname, 'public', 'contenido-videos.js')));
 app.get('/contenido-sw.js', (req, res) => {
   res.set('Cache-Control', 'no-cache');
   res.sendFile(path.join(__dirname, 'public', 'contenido-sw.js'));

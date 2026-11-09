@@ -16,3 +16,18 @@ await build({
   nodePaths: process.env.NODE_PATH ? process.env.NODE_PATH.split(":") : [],
   logLevel: "info",
 });
+
+// Videos (Remotion): paquete aparte, se descarga solo al abrir Estudio IA → Videos.
+//   npm i --no-save remotion@4.0.542 @remotion/player@4.0.542 @remotion/web-renderer@4.0.542
+await build({
+  entryPoints: [path.join(aqui, "videos", "main.jsx")],
+  outfile: path.join(aqui, "..", "public", "contenido-videos.js"),
+  bundle: true,
+  minify: true,
+  jsx: "automatic",
+  format: "iife",
+  target: ["es2020"],
+  define: { "process.env.NODE_ENV": '"production"' },
+  nodePaths: process.env.NODE_PATH ? process.env.NODE_PATH.split(":") : [],
+  logLevel: "info",
+});

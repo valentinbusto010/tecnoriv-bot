@@ -80,7 +80,7 @@ Foto, info, descripción, dirección, email, web y rubro que ve el cliente al to
 - Todo queda en el **historial** (bucket `productos/ia/`, tabla `supabase-ia.sql`) y con un toque pasa a la galería de un producto para usarlo en piezas.
 - Requiere `GEMINI_API_KEY` en Render (aistudio.google.com → Get API key; Nano Banana Pro necesita facturación activa). Si la cuenta no tiene cuota para Pro, usa solo Nano Banana (`gemini-2.5-flash-image`). Opcional: `GEMINI_MODELO_IMAGEN` para forzar un modelo.
 - Mismo método de API que la skill "imagen" (sanjay3290/ai-skills).
-- **Videos con Remotion**: próxima etapa.
+- **Videos (Remotion)**: 4 plantillas 9:16 (Reel de producto, Promo/oferta, Precio antes/después, Catálogo animado) con fotos de la galería, precios y promo vigente. Vista previa con `@remotion/player` y exportación a **MP4 en el navegador** con `@remotion/web-renderer` (gratis, sin servidor; mejor en Chrome de compu). Código en `contenido/videos/`, paquete aparte `public/contenido-videos.js` que se descarga solo al abrir la pestaña.
 
 ### Galería de fotos por producto (en /gestion → Stock)
 - Tocá la miniatura de un producto: ves todas sus fotos, subís varias juntas desde el celu (se achican a 1600 px antes de subir), elegís la **principal** (catálogo, WhatsApp, Marketplace) y borrás las que no sirven.

@@ -297,22 +297,53 @@ function normalizarSlides(slides, formato, elegidos) {
 
 // ───────── armado ─────────
 
+// Cuántas fotos de cada producto necesita un guion (una distinta por slide).
+// Las slides sin producto (portada/cta de fondo) usan el primer producto del guion.
+function fotosNecesarias(slides) {
+  const cuenta = {};
+  const primero = slides.flatMap((s) => [s.producto_id, s.producto_id_b]).find(Boolean);
+  for (const s of slides) {
+    const ids = [s.producto_id, s.producto_id_b].filter(Boolean);
+    if (!ids.length && primero && ['portada', 'cta'].includes(s.tipo)) ids.push(primero);
+    for (const id of ids) cuenta[id] = (cuenta[id] || 0) + 1;
+  }
+  return cuenta;
+}
+
 // Dibuja todas las imágenes de un guion. Devuelve [Buffer jpg].
-async function dibujarGuion({ formato, slides, productos, promo }) {
+// galeria (opcional): { producto_id: [url, url…] } → cada slide del mismo producto usa la siguiente foto (no se repite).
+async function dibujarGuion({ formato, slides, productos, promo, galeria = null }) {
   const H = ALTO[formato] || 1350;
   const usados = [...new Set(slides.flatMap((s) => [s.producto_id, s.producto_id_b]).filter(Boolean))];
-  const conFoto = productos.filter((p) => usados.includes(p.id) && p.imagen_url);
-  const fotos = new Map();
-  await Promise.all(conFoto.map(async (p) => {
-    try { fotos.set(p.id, await bajarFoto(p.imagen_url)); } catch (e) { console.error(`No se pudo bajar la foto de ${p.nombre}:`, e.message); }
+  const urlsDe = (p) => {
+    const g = galeria?.[p.id];
+    const lista = (Array.isArray(g) ? g : g ? [g] : []).filter(Boolean);
+    return lista.length ? lista : p.imagen_url ? [p.imagen_url] : [];
+  };
+  const fotos = new Map(); // id -> [Buffer]
+  await Promise.all(productos.filter((p) => usados.includes(p.id)).map(async (p) => {
+    const bufs = [];
+    for (const u of urlsDe(p)) {
+      try { bufs.push(await bajarFoto(u)); } catch (e) { console.error(`No se pudo bajar una foto de ${p.nombre}:`, e.message); }
+    }
+    if (bufs.length) fotos.set(p.id, bufs);
   }));
   const primera = usados.find((id) => fotos.has(id));
+  const vuelta = new Map();
+  const siguiente = (id) => {
+    const lista = fotos.get(Number(id));
+    if (!lista) return null;
+    const k = vuelta.get(Number(id)) || 0;
+    vuelta.set(Number(id), k + 1);
+    return lista[k % lista.length];
+  };
   const ctx = {
     formato, promo, total: slides.length,
     producto: (id) => productos.find((p) => p.id === Number(id)) || null,
-    fotoDe: (id) => (id ? fotos.get(Number(id)) || null : null),
-    fotoPrincipal: primera ? fotos.get(primera) : null,
+    fotoDe: (id) => (id ? siguiente(id) : null),
   };
+  // Cada vez que una slide pide la foto principal, toma la siguiente del primer producto.
+  Object.defineProperty(ctx, 'fotoPrincipal', { get: () => (primera ? siguiente(primera) : null) });
   const imagenes = [];
   for (let i = 0; i < slides.length; i++) {
     ctx.n = i + 1;
@@ -325,10 +356,12 @@ const aDataUrl = (buf) => 'data:image/jpeg;base64,' + buf.toString('base64');
 const miniatura = async (buf) => aDataUrl(await sharp(buf).resize(300).jpeg({ quality: 70 }).toBuffer());
 
 // Pieza de Instagram completa: textos + imágenes.
-async function crearPiezaInstagram({ formato, plantilla, tema, elegidos, productos, promo }) {
+// elegirFotos (opcional): async ({ producto_id: cantidad }) => ({ producto_id: [urls] }) para no repetir fotos.
+async function crearPiezaInstagram({ formato, plantilla, tema, elegidos, productos, promo, elegirFotos }) {
   const guion = await escribirGuion({ formato, plantilla, tema, elegidos, promo });
-  const imagenes = await dibujarGuion({ formato, slides: guion.slides, productos, promo });
-  return { ...guion, imagenes };
+  const galeria = elegirFotos ? await elegirFotos(fotosNecesarias(guion.slides)).catch(() => null) : null;
+  const imagenes = await dibujarGuion({ formato, slides: guion.slides, productos, promo, galeria });
+  return { ...guion, imagenes, galeria };
 }
 
 // Publicación de Marketplace con la foto del producto (misma imagen que /gestion).
@@ -393,4 +426,4 @@ Para cada idea: fecha (AAAA-MM-DD), hora (HH:MM, horarios con más actividad en 
   }));
 }
 
-module.exports = { crearPiezaInstagram, crearPiezaMarketplace, dibujarGuion, normalizarSlides, planSemanal, aDataUrl, miniatura, PLANTILLAS, MAX_SLIDES };
+module.exports = { fotosNecesarias, crearPiezaInstagram, crearPiezaMarketplace, dibujarGuion, normalizarSlides, planSemanal, aDataUrl, miniatura, PLANTILLAS, MAX_SLIDES };

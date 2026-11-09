@@ -193,12 +193,11 @@ async function crearPieza(body) {
   } else {
     if (['producto', 'coleccion', 'comparativa'].includes(plantilla) && !elegidos.length) throw malo('Elegí al menos un producto para esta plantilla');
     if (plantilla === 'comparativa' && elegidos.length < 2) throw malo('Para comparar elegí 2 productos');
-    // Galería: la foto menos usada de cada producto, para no repetir siempre la misma en el feed.
+    // Galería: una foto distinta por slide, las menos usadas, para no repetir en el feed.
     const galeria = require('./fotos');
-    const fotos = await galeria.elegir(elegidos.map((p) => p.id)).catch(() => ({}));
-    const g = await estudio.crearPiezaInstagram({ formato, plantilla, tema, elegidos, productos: galeria.conFotos(productos, fotos), promo });
-    fila = { formato, plantilla, titulo: g.titulo, caption: g.caption, guion: { slides: g.slides, fotos } };
-    await galeria.marcarUso(fotos).catch(() => {});
+    const g = await estudio.crearPiezaInstagram({ formato, plantilla, tema, elegidos, productos, promo, elegirFotos: (c) => galeria.elegirVarias(c) });
+    fila = { formato, plantilla, titulo: g.titulo, caption: g.caption, guion: { slides: g.slides, fotos: g.galeria || {} } };
+    await galeria.marcarUso(g.galeria).catch(() => {});
     imagenes = g.imagenes;
   }
   fila.tema = tema || null;
@@ -293,16 +292,11 @@ function router(chequearClave, explicarError = (e) => e.message) {
       const galeria = require('./fotos');
       let fotos = pieza.guion?.fotos || {};
       if (req.body.otrasFotos) {
-        const { data: todas } = await supabase.from('producto_fotos').select('producto_id, url, usos').in('producto_id', elegidos.map((p) => p.id));
-        fotos = {};
-        for (const p of elegidos) {
-          const opciones = (todas || []).filter((f) => f.producto_id === p.id && f.url !== pieza.guion?.fotos?.[p.id]).sort((a, b) => a.usos - b.usos);
-          if (opciones[0]) fotos[p.id] = opciones[0].url;
-          else if (pieza.guion?.fotos?.[p.id]) fotos[p.id] = pieza.guion.fotos[p.id];
-        }
+        const antes = Object.values(fotos).flat();
+        fotos = await galeria.elegirVarias(estudio.fotosNecesarias(slides), antes).catch(() => ({}));
         await galeria.marcarUso(fotos).catch(() => {});
       }
-      const imagenes = await estudio.dibujarGuion({ formato: pieza.formato, slides, productos: galeria.conFotos(productos, fotos), promo });
+      const imagenes = await estudio.dibujarGuion({ formato: pieza.formato, slides, productos, promo, galeria: fotos });
       await guardarImagenes(pieza.id, imagenes, estudio.aDataUrl);
       await supabase.from('piezas').update({ guion: { slides, fotos }, miniatura: await estudio.miniatura(imagenes[0]) }).eq('id', pieza.id);
       res.json({ ok: true });

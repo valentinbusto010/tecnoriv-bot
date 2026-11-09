@@ -70,8 +70,26 @@ async function elegir(productoIds) {
   return elegidas;
 }
 
+// Varias fotos por producto, todas distintas y las menos usadas: { producto_id: cantidad } → { producto_id: [urls] }.
+// excluir: urls a evitar (ej. las que ya tenía la pieza). Si no alcanzan, completa repitiendo.
+async function elegirVarias(cuentas, excluir = []) {
+  const ids = Object.keys(cuentas || {}).map(Number).filter(Boolean);
+  if (!ids.length) return {};
+  const { data, error } = await supabase.from('producto_fotos').select('producto_id, url, usos, ultimo_uso').in('producto_id', ids);
+  if (error) return {};
+  const evitar = new Set(excluir);
+  const out = {};
+  for (const id of ids) {
+    const fotos = (data || []).filter((f) => f.producto_id === id)
+      .map((f) => ({ ...f, r: Math.random() }))
+      .sort((a, b) => (evitar.has(a.url) - evitar.has(b.url)) || (a.usos || 0) - (b.usos || 0) || String(a.ultimo_uso || '').localeCompare(String(b.ultimo_uso || '')) || a.r - b.r);
+    if (fotos.length) out[id] = fotos.slice(0, Math.max(1, cuentas[id])).map((f) => f.url);
+  }
+  return out;
+}
+
 async function marcarUso(urls) {
-  const lista = [...new Set(Object.values(urls || {}))];
+  const lista = [...new Set(Object.values(urls || {}).flat())];
   if (!lista.length) return;
   const { data } = await supabase.from('producto_fotos').select('id, usos').in('url', lista);
   const ahora = new Date().toISOString();
@@ -81,4 +99,4 @@ async function marcarUso(urls) {
 // Productos con la foto elegida en vez de la principal (para dibujar una pieza).
 const conFotos = (productos, fotos) => productos.map((p) => (fotos?.[p.id] ? { ...p, imagen_url: fotos[p.id] } : p));
 
-module.exports = { agregar, importar, elegir, marcarUso, conFotos, preparar };
+module.exports = { agregar, importar, elegir, elegirVarias, marcarUso, conFotos, preparar };

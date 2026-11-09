@@ -278,6 +278,9 @@ function router(chequearClave, explicarError = (e) => e.message) {
     res.json(data);
   });
 
+  // Estudio IA: crear y editar imágenes con Nano Banana (Gemini)
+  r.use('/ia', require('./ia').router());
+
   // ── Galería de fotos para el editor de slides ──
   // GET /galeria?ids=41,42 → fotos de esos productos (las más nuevas primero)
   r.get('/galeria', async (req, res) => {

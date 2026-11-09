@@ -73,6 +73,7 @@ const Icon = ({ name, size = 18 }) => {
     send: <svg {...p}><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>,
     edit: <svg {...p}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
     plus: <svg {...p} strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+    ia: <svg {...p}><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 15l2.5-3 2 2.5L15 11l3 4"/><path d="M15.5 4.5l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6z" fill="currentColor"/></svg>,
     ig: <svg {...p}><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="0.6" fill="currentColor"/></svg>,
   };
   return icons[name] || null;
@@ -671,6 +672,191 @@ const Detalle = ({ id, datos, onClose, onCambio }) => {
   );
 };
 
+// ─── ESTUDIO IA: crear y editar imágenes con Nano Banana (Gemini) ─────────────
+const FORMATOS_IA = [["4:5", "Post"], ["9:16", "Historia / Reel"], ["1:1", "Cuadrada"], ["16:9", "Horizontal"]];
+const IDEAS_CREAR = [
+  "Foto de producto sobre una mesa de madera clara con luz natural de ventana",
+  "En la muñeca de una persona caminando por la ciudad de noche, luces de neón azules",
+  "Flat lay prolijo con el producto y accesorios tecnológicos, vista desde arriba",
+  "Producto flotando sobre fondo oscuro con reflejo y luces azules estilo Tecno Riv",
+  "Persona joven usándolo en un parque de Río Cuarto al atardecer, foto lifestyle",
+];
+const IDEAS_EDITAR = [
+  "Sacá el fondo y poné un fondo blanco liso de estudio",
+  "Cambiá el fondo por uno oscuro con luces azules de neón",
+  "Mejorá la luz, el contraste y la nitidez como foto profesional",
+  "Poné el producto en la mano de una persona, fondo desenfocado",
+  "Agregá una sombra y reflejo realistas debajo del producto",
+];
+
+function ResultadoIA({ im, productos, onEditar, onCambio }) {
+  const [pid, setPid] = useState(im.producto_id || "");
+  const [msg, setMsg] = useState("");
+  const conFoto = productos.filter(p => p.activo !== false);
+  const aGaleria = async () => {
+    if (!pid) return setMsg("Elegí el producto");
+    try { await api(`/ia/historial/${im.id}/galeria`, "POST", { producto_id: Number(pid) }); setMsg("✓ Agregada a la galería del producto"); onCambio?.(); }
+    catch (e) { setMsg(e.message); }
+  };
+  return (
+    <div style={{ ...card, padding: "14px", background: "rgba(0,0,0,0.28)" }}>
+      <img src={im.url} alt="" style={{ width: "100%", maxHeight: "70vh", objectFit: "contain", borderRadius: "10px", display: "block", background: "#05070d" }} />
+      <div style={{ color: "#6b7280", fontSize: "11px", margin: "8px 0" }}>{im.modelo_nombre || im.modelo} · {im.formato} · “{String(im.prompt || "").slice(0, 120)}”</div>
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+        <a href={im.url} download target="_blank" rel="noreferrer" style={{ ...chipSt(true), textDecoration: "none" }}><Icon name="download" size={12} /> Descargar</a>
+        {onEditar && <button onClick={() => onEditar(im.url)} style={chipSt(false)}><Icon name="edit" size={12} /> Editar con IA</button>}
+        <select value={pid} onChange={e => setPid(e.target.value)} style={{ ...fieldSt, width: "auto", padding: "6px 10px", fontSize: "13px" }}>
+          <option value="">Producto…</option>
+          {conFoto.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+        </select>
+        <button onClick={aGaleria} style={chipSt(false)}>+ Galería del producto</button>
+      </div>
+      {msg && <div style={{ fontSize: "12px", marginTop: "6px", color: msg.startsWith("✓") ? "#6ee7b7" : "#fca5a5" }}>{msg}</div>}
+    </div>
+  );
+}
+
+function EstudioIA({ datos }) {
+  const [modo, setModo] = useState("crear");
+  const [estado, setEstado] = useState(null);
+  const [hist, setHist] = useState([]);
+  const [prompt, setPrompt] = useState("");
+  const [formato, setFormato] = useState("4:5");
+  const [tamano, setTamano] = useState("2K");
+  const [estilo, setEstilo] = useState(true);
+  const [pid, setPid] = useState("");
+  const [refs, setRefs] = useState([]);       // referencias (crear) o [base] (editar)
+  const [eligiendo, setEligiendo] = useState(false);
+  const [generando, setGenerando] = useState(false);
+  const [resultado, setResultado] = useState(null);
+  const [error, setError] = useState("");
+  const productos = datos.productos || [];
+  const nombres = Object.fromEntries(productos.map(x => [x.id, x.nombre]));
+
+  const cargarHist = useCallback(() => api("/ia/historial").then(setHist).catch(e => setError(e.message)), []);
+  useEffect(() => { api("/ia/estado").then(setEstado).catch(() => setEstado({ gemini: false })); cargarHist(); }, [cargarHist]);
+
+  const cambiarModo = (m, base) => { setModo(m); setResultado(null); setError(""); setRefs(base ? [base] : []); setPrompt(""); window.scrollTo(0, 0); };
+  const subirBase = async (e) => {
+    const f = e.target.files?.[0]; e.target.value = ""; if (!f) return;
+    const d = await achicarImagen(f, 1600);
+    setRefs(r => modo === "editar" ? [d] : [...r, d].slice(0, 4));
+  };
+  const generar = async () => {
+    setError(""); setGenerando(true); setResultado(null);
+    try {
+      const r = await api("/ia/imagen", "POST", { prompt, referencias: refs, formato, tamano, estilo, editar: modo === "editar", producto_id: pid ? Number(pid) : null });
+      setResultado(r); cargarHist();
+    } catch (e) { setError(e.message); } finally { setGenerando(false); }
+  };
+
+  const sub = (id, label) => <button onClick={() => cambiarModo(id)} style={{ ...chipSt(modo === id), padding: "8px 16px", fontSize: "14px" }}>{label}</button>;
+  const thumb = (src, onQuitar, k) => (
+    <div key={k} style={{ position: "relative", width: 76, height: 76, borderRadius: "10px", overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)", flexShrink: 0 }}>
+      <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      <button onClick={onQuitar} style={{ position: "absolute", top: 2, right: 2, background: "rgba(0,0,0,0.75)", color: "#fff", border: "none", borderRadius: "50%", width: 20, height: 20, cursor: "pointer", fontSize: "12px", lineHeight: 1 }}>×</button>
+    </div>
+  );
+
+  return (
+    <div>
+      <Header kicker="Nano Banana Pro · Google Gemini" title="Estudio IA" />
+      <div style={{ display: "flex", gap: "8px", marginBottom: "16px", flexWrap: "wrap" }}>
+        {sub("crear", "✨ Crear imagen")}{sub("editar", "🪄 Editar con IA")}{sub("videos", "🎬 Videos")}
+      </div>
+
+      {estado && !estado.gemini && modo !== "videos" && (
+        <div style={{ ...card, padding: "14px", marginBottom: "16px", borderColor: "#f59e0b55", color: "#fcd34d", fontSize: "13px", lineHeight: 1.6 }}>
+          <b>Falta conectar Gemini.</b> 1) Entrá a <b>aistudio.google.com</b> → <b>Get API key</b> → Crear clave. 2) Para Nano Banana Pro activá la facturación del proyecto. 3) En Render → Environment agregá <code>GEMINI_API_KEY</code> con esa clave y guardá. En 2-3 minutos queda andando.
+        </div>
+      )}
+
+      {modo === "videos" ? (
+        <div style={{ ...card, padding: "18px", color: "#d1d5db", fontSize: "14px", lineHeight: 1.6 }}>
+          <div style={{ fontWeight: 700, color: "#fff", fontSize: "16px", marginBottom: "6px" }}>🎬 Videos con Remotion · próximamente</div>
+          Reels 9:16 animados con tus fotos de la galería, precios, promo y logo: <b>Reel de producto</b>, <b>Promo / oferta</b> con cuenta regresiva, <b>precio antes/después</b> y <b>catálogo animado</b>. Se previsualizan acá y se exportan en MP4.
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "16px", alignItems: "start" }}>
+          <div style={{ ...card, padding: "16px" }}>
+            {modo === "editar" ? (
+              <>
+                <label style={labelSt}>Imagen a editar</label>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center", marginBottom: "12px" }}>
+                  {refs[0] ? thumb(refs[0], () => setRefs([]), "b") : <span style={{ color: "#6b7280", fontSize: "13px" }}>Elegí una de la galería, del historial (abajo) o subila.</span>}
+                </div>
+              </>
+            ) : (
+              <>
+                <label style={labelSt}>Fotos de referencia (tu producto real)</label>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center", marginBottom: "12px" }}>
+                  {refs.map((r, i) => thumb(r, () => setRefs(x => x.filter((_, k) => k !== i)), i))}
+                  {!refs.length && <span style={{ color: "#6b7280", fontSize: "12px" }}>Opcional: con fotos, la IA respeta el producto real (recomendado).</span>}
+                </div>
+              </>
+            )}
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "14px" }}>
+              <select value={pid} onChange={e => setPid(e.target.value)} style={{ ...fieldSt, flex: 1, minWidth: "160px", padding: "8px 10px", fontSize: "13px" }}>
+                <option value="">Producto…</option>
+                {productos.filter(p => p.activo !== false).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+              </select>
+              <button onClick={() => pid ? setEligiendo(true) : setError("Elegí primero el producto")} style={chipSt(false)}>📷 De la galería</button>
+              <label style={{ ...chipSt(false), cursor: "pointer" }}>⬆ Subir<input type="file" accept="image/*" onChange={subirBase} style={{ display: "none" }} /></label>
+            </div>
+
+            <label style={labelSt}>{modo === "editar" ? "¿Qué cambio querés?" : "¿Qué imagen querés?"}</label>
+            <textarea value={prompt} onChange={e => setPrompt(e.target.value)} rows={4} placeholder={modo === "editar" ? "Ej: cambiá el fondo por una mesa de madera con luz cálida" : "Ej: el smartwatch D20 en la muñeca de un chico corriendo en el parque al atardecer"} style={{ ...fieldSt, resize: "vertical", marginBottom: "8px" }} />
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "14px" }}>
+              {(modo === "editar" ? IDEAS_EDITAR : IDEAS_CREAR).map(t => <button key={t} onClick={() => setPrompt(t)} style={{ ...chipSt(false), fontSize: "11px", padding: "5px 10px", textAlign: "left", whiteSpace: "normal", maxWidth: "100%", lineHeight: 1.3 }}>{t}</button>)}
+            </div>
+
+            <label style={labelSt}>Formato</label>
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "12px" }}>
+              {FORMATOS_IA.map(([f, l]) => <button key={f} onClick={() => setFormato(f)} style={chipSt(formato === f)}>{l} · {f}</button>)}
+            </div>
+            <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", alignItems: "center", marginBottom: "14px" }}>
+              <span style={{ display: "flex", gap: "6px", alignItems: "center" }}><span style={{ color: "#9ca3af", fontSize: "12px" }}>Calidad</span>
+                {["1K", "2K", "4K"].map(t => <button key={t} onClick={() => setTamano(t)} style={{ ...chipSt(tamano === t), padding: "4px 10px" }}>{t}</button>)}</span>
+              {modo === "crear" && <label style={{ display: "flex", gap: "6px", alignItems: "center", color: "#d1d5db", fontSize: "13px", cursor: "pointer" }}><input type="checkbox" checked={estilo} onChange={e => setEstilo(e.target.checked)} /> Estilo Tecno Riv</label>}
+            </div>
+            <Btn onClick={generar} disabled={generando || !prompt.trim() || (modo === "editar" && !refs.length) || (estado && !estado.gemini)} style={{ width: "100%", justifyContent: "center" }}>
+              {generando ? "Generando… (20-60 s)" : modo === "editar" ? "🪄 Editar imagen" : "✨ Crear imagen"}
+            </Btn>
+            <div style={{ color: "#6b7280", fontSize: "11px", marginTop: "8px" }}>Cada imagen consume tu cuota de Gemini (4K cuesta más). Todo lo que generes queda en el historial.</div>
+            {error && <div style={{ color: "#fca5a5", fontSize: "13px", marginTop: "10px" }}>{error}</div>}
+          </div>
+
+          <div>
+            {generando && <div style={{ ...card, padding: "40px", textAlign: "center", color: "#9ca3af" }}><div className="tr-ia-gen" style={{ fontSize: "34px", marginBottom: "8px" }}>✨</div>Nano Banana está creando tu imagen…</div>}
+            {resultado && !generando && <ResultadoIA im={resultado} productos={productos} onEditar={u => cambiarModo("editar", u)} onCambio={cargarHist} />}
+            {!resultado && !generando && <div style={{ ...card, padding: "30px", textAlign: "center", color: "#6b7280", fontSize: "13px" }}>Acá aparece tu imagen.</div>}
+          </div>
+        </div>
+      )}
+
+      {modo !== "videos" && hist.length > 0 && (
+        <div style={{ marginTop: "24px" }}>
+          <div style={{ ...sectionLabel, marginBottom: "10px" }}>Historial · {hist.length}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: "8px" }}>
+            {hist.map(h => (
+              <div key={h.id} style={{ position: "relative", borderRadius: "10px", overflow: "hidden", border: "1px solid rgba(255,255,255,0.08)", background: "#0b0f19" }}>
+                <img src={h.url} alt="" loading="lazy" onClick={() => setResultado(h)} style={{ width: "100%", aspectRatio: "1", objectFit: "cover", display: "block", cursor: "pointer" }} />
+                <div style={{ display: "flex", gap: "4px", padding: "4px" }}>
+                  <button onClick={() => cambiarModo("editar", h.url)} title="Editar con IA" style={{ ...chipSt(false), flex: 1, padding: "3px", fontSize: "10px", justifyContent: "center" }}>🪄</button>
+                  {modo === "crear" && <button onClick={() => setRefs(r => [...r, h.url].slice(0, 4))} title="Usar como referencia" style={{ ...chipSt(false), flex: 1, padding: "3px", fontSize: "10px", justifyContent: "center" }}>+ref</button>}
+                  <button onClick={async () => { if (confirm("¿Borrar del historial?")) { await api(`/ia/historial/${h.id}`, "DELETE").catch(() => {}); cargarHist(); } }} title="Borrar" style={{ ...chipSt(false), padding: "3px 6px", fontSize: "10px" }}><Icon name="trash" size={10} /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {eligiendo && pid && <ElegirFoto productoIds={[Number(pid)]} nombres={nombres} actual={null} onElegir={url => { setRefs(r => modo === "editar" ? [url] : [...r, url].slice(0, 4)); setEligiendo(false); }} onClose={() => setEligiendo(false)} />}
+      <style>{`@keyframes trIaGen{0%,100%{transform:scale(1) rotate(0)}50%{transform:scale(1.25) rotate(20deg)}}.tr-ia-gen{display:inline-block;animation:trIaGen 1.4s ease-in-out infinite}`}</style>
+    </div>
+  );
+}
+
 // ─── LOGIN ─────────────────────────────────────────────────────────────────────
 const Login = ({ onOk, error }) => {
   const [clave, setClave] = useState("");
@@ -730,6 +916,7 @@ export default function App() {
     { id: "crear", label: "Crear", icon: "crear" },
     { id: "biblioteca", label: "Biblioteca", icon: "biblioteca" },
     { id: "calendario", label: "Calendario", icon: "calendario" },
+    { id: "ia", label: "IA", icon: "ia" },
   ];
 
   return (
@@ -753,6 +940,7 @@ export default function App() {
         {tab === "crear" && <Crear key={claveCrear} datos={datos} inicial={inicialCrear} onCreada={async (id) => { await cargar(); setAbierta(id); irA("biblioteca"); }} />}
         {tab === "biblioteca" && <Biblioteca piezas={datos.piezas} onOpen={setAbierta} />}
         {tab === "calendario" && <Calendario datos={datos} onOpen={setAbierta} irACrear={irACrear} />}
+        {tab === "ia" && <EstudioIA datos={datos} />}
       </div>
 
       {abierta && <Detalle id={abierta} datos={datos} onClose={() => setAbierta(null)} onCambio={cargar} />}

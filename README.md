@@ -74,6 +74,14 @@ Botón **✨ Asistente IA** abajo a la derecha. Ve en vivo tu stock, ventas (120
 ### Perfil de WhatsApp del bot (en /gestion → Clientes)
 Foto, info, descripción, dirección, email, web y rubro que ve el cliente al tocar el nombre del chat, con vista previa. **Poner logo TECNO riv** sube el logo como foto (640×640) y **Usar textos sugeridos** arma la descripción con los datos de `src/negocio.js`. Usa `WHATSAPP_TOKEN` y `PHONE_NUMBER_ID`; para la foto busca solo el ID de la app (si falla, cargá `META_APP_ID` en Render). El nombre visible se cambia en WhatsApp Manager (lo revisa Meta).
 
+### Estudio IA (en /contenido → IA)
+- **Crear imagen** con Nano Banana Pro (Google Gemini `gemini-3-pro-image-preview`): describís la imagen y sumás fotos de la galería como referencia para que respete el producto real. Formatos post 4:5, historia 9:16, 1:1 y 16:9; calidad 1K/2K/4K; "Estilo Tecno Riv" opcional.
+- **Editar con IA**: elegís una foto (galería, historial o subida) y pedís el cambio (fondo, luz, en la mano, etc.).
+- Todo queda en el **historial** (bucket `productos/ia/`, tabla `supabase-ia.sql`) y con un toque pasa a la galería de un producto para usarlo en piezas.
+- Requiere `GEMINI_API_KEY` en Render (aistudio.google.com → Get API key; Nano Banana Pro necesita facturación activa). Si la cuenta no tiene cuota para Pro, usa solo Nano Banana (`gemini-2.5-flash-image`). Opcional: `GEMINI_MODELO_IMAGEN` para forzar un modelo.
+- Mismo método de API que la skill "imagen" (sanjay3290/ai-skills).
+- **Videos con Remotion**: próxima etapa.
+
 ### Galería de fotos por producto (en /gestion → Stock)
 - Tocá la miniatura de un producto: ves todas sus fotos, subís varias juntas desde el celu (se achican a 1600 px antes de subir), elegís la **principal** (catálogo, WhatsApp, Marketplace) y borrás las que no sirven.
 - **/contenido rota las fotos:** cada pieza nueva usa la foto menos usada de cada producto (queda guardada en la pieza; "Rehacer" mantiene la misma, o pedile otras con `otrasFotos`).
@@ -120,7 +128,7 @@ Editá el archivo `src/negocio.js`.
 
 ## Instalación (una sola vez)
 
-1. **Supabase:** abrí tu proyecto → **SQL Editor** → pegá el contenido de `supabase.sql` → **Run**. Después corré también `supabase-gestion.sql`, `supabase-margen.sql`, `supabase-publicaciones.sql`, `supabase-instagram.sql`, `supabase-contenido.sql` `supabase-postventa.sql` y `supabase-fotos.sql` (agrega clientes, gastos y el stock automático; se puede correr más de una vez). Cargá tus productos reales en la tabla `productos` o desde `/gestion`.
+1. **Supabase:** abrí tu proyecto → **SQL Editor** → pegá el contenido de `supabase.sql` → **Run**. Después corré también `supabase-gestion.sql`, `supabase-margen.sql`, `supabase-publicaciones.sql`, `supabase-instagram.sql`, `supabase-contenido.sql` `supabase-postventa.sql`, `supabase-fotos.sql` y `supabase-ia.sql` (agrega clientes, gastos y el stock automático; se puede correr más de una vez). Cargá tus productos reales en la tabla `productos` o desde `/gestion`.
 2. **Variables:** en tu hosting (Render, Railway, etc.) cargá las variables de `.env.example`:
    - `CLAUDE_API_KEY`, `WHATSAPP_TOKEN`, `PHONE_NUMBER_ID`, `VERIFY_TOKEN`, `SUPABASE_URL`, `SUPABASE_KEY` (las mismas que ya usabas)
    - **Nuevas:** `OWNER_PHONE` (tu número para los avisos de venta, ej `5493584123456`) y `PANEL_PASSWORD` (inventá una contraseña).

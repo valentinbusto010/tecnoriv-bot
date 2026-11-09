@@ -119,8 +119,10 @@ app.post('/webhook', async (req, res) => {
 
     const historial = await obtenerHistorial(from);
     await guardarMensaje(from, 'user', text);
-    const extra = await postventa.contextoCliente(from).catch(() => '');
-    const { texto, ventas, humano, fotos } = await responderCliente([...historial, { role: 'user', content: text }], imagen, extra);
+    const conocido = await gestion.origenDe(from).catch(() => null);
+    const extra = (await postventa.contextoCliente(from).catch(() => '')) +
+      (conocido ? `\nCÓMO NOS CONOCIÓ: ya lo sabemos (${conocido}), no lo preguntes.` : '');
+    const { texto, ventas, humano, fotos, origen } = await responderCliente([...historial, { role: 'user', content: text }], imagen, extra);
 
     const enviadas = [];
     for (const foto of fotos) {
@@ -158,6 +160,10 @@ app.post('/webhook', async (req, res) => {
     if (humano) {
       console.log(`DERIVADO A HUMANO ${from}: ${humano}`);
       await avisarDueno(`🙋 UN CLIENTE NECESITA ATENCIÓN\nCliente: +${from}\nMotivo: ${humano}\nÚltimo mensaje: ${text}`);
+    }
+    if (origen && !conocido) {
+      const o = await gestion.guardarOrigen(from, origen, nombrePerfil).catch((e) => console.error('Error guardando origen:', e.message));
+      if (o) console.log(`${from} nos conoció por: ${o}`);
     }
   } catch (error) {
     console.error('Error:', error.response?.data || error.message);

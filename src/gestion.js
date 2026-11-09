@@ -51,6 +51,24 @@ async function registrarContacto(telefono, nombrePerfil) {
   return data?.id || null;
 }
 
+// ───────── CÓMO NOS CONOCIÓ ─────────
+// Lo que contesta el cliente al cerrar la venta queda en clientes.origen (se ve en /gestion y en el resumen diario).
+const ORIGENES = ['Instagram', 'Marketplace', 'Recomendación', 'Catálogo web', 'Otro'];
+
+async function origenDe(telefono) {
+  if (!supabase || !telefono) return null;
+  const { data } = await supabase.from('clientes').select('origen').eq('telefono', telefono).maybeSingle();
+  return ORIGENES.includes(data?.origen) ? data.origen : null;
+}
+
+async function guardarOrigen(telefono, texto, nombrePerfil) {
+  const t = String(texto || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const origen = ORIGENES.find((o) => t.includes(o.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''))) || 'Otro';
+  const id = await registrarContacto(telefono, nombrePerfil);
+  if (id) await supabase.from('clientes').update({ origen }).eq('id', id);
+  return origen;
+}
+
 // ───────── VENTAS DEL BOT ─────────
 
 function buscarProducto(texto, productos) {
@@ -465,6 +483,6 @@ function router(chequearClave, explicarError = (e) => e.message) {
 }
 
 module.exports = {
-  registrarContacto, registrarVenta, parsearVenta, comandoDueno, esDueno, router, fmt, margenReal,
+  registrarContacto, registrarVenta, parsearVenta, origenDe, guardarOrigen, ORIGENES, comandoDueno, esDueno, router, fmt, margenReal,
   limpiar, crearPedido, ajustarStock, guardarAjuste, cargarGasto, hoyAR, CATEGORIAS_GASTO, ESTADOS, AJUSTES_DEFECTO,
 };

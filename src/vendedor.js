@@ -71,6 +71,8 @@ Dejá claro que se transfiere cuando recibe el producto, no antes. No inventes o
 Ejemplo: [VENTA: Smartwatch T900 Ultra | 1 | $39.990 | Juan Pérez | envío a Belgrano 123 | transferencia]
 Si sumó un complemento, van dos marcas seguidas, una por producto, con el mismo nombre, entrega y pago.
 
+CÓMO NOS CONOCIÓ: en el mensaje donde agregás la marca [VENTA], cerrá con una sola línea: "¿Cómo nos conociste? ¿Instagram, Marketplace o te recomendó alguien?". Si el cliente contesta eso, agradecé en una línea y agregá al final [ORIGEN: Instagram | Marketplace | Recomendación | Catálogo web | Otro] (elegí una sola opción). Preguntalo una sola vez y no insistas si no contesta. Si en las instrucciones dice que ya sabemos cómo nos conoció, no lo preguntes.
+
 COMPLEMENTOS (sumar un accesorio a la venta):
 - Cuando el cliente ya decidió comprar, ofrecé UNA sola vez un accesorio que combine con lo que lleva, en una frase corta y sin presionar. Ej: "¿Le sumamos un hidrogel para que no se raye la pantalla? Son $X y te lo llevo junto 🙌".
 - Combinaciones: smartwatch → hidrogel, funda o malla para smartwatch. Cargador o cabezal → el cable que le corresponde. Cable → cabezal cargador. Funda de iPhone → otra funda o un cable para su iPhone.
@@ -132,7 +134,8 @@ function ordenarHistorial(historial) {
 
 // historial: [{role:'user'|'assistant', content}] terminando en el mensaje del cliente.
 // imagen (opcional): { base64, mimeType } de una foto que mandó el cliente en el último mensaje.
-// Devuelve { texto, venta, humano, fotos }: venta si el cliente confirmó la compra, humano si hay que derivarlo.
+// Devuelve { texto, venta, humano, fotos, origen }: venta si el cliente confirmó la compra, humano si hay que derivarlo,
+// origen si contestó cómo nos conoció.
 // extra (opcional): contexto de este cliente (ej. un beneficio de recompra vigente).
 async function responderCliente(historial, imagen = null, extra = '') {
   const productos = await obtenerProductos();
@@ -151,6 +154,7 @@ async function responderCliente(historial, imagen = null, extra = '') {
 
   const ventas = [...respuesta.matchAll(/\[VENTA:\s*([^\]]+)\]/gi)].map((m) => m[1].trim());
   const humano = respuesta.match(/\[HUMANO:\s*([^\]]+)\]/i);
+  const origen = respuesta.match(/\[ORIGEN:\s*([^\]]+)\]/i);
   const normalizar = (t) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
   // Resguardo: no repetir una foto ya mandada (nota interna [Fotos ya enviadas: …] que guarda el webhook),
   // salvo que en su último mensaje el cliente pida una foto o imagen.
@@ -170,10 +174,11 @@ async function responderCliente(historial, imagen = null, extra = '') {
   const texto = respuesta
     .replace(/\[VENTA:[^\]]*\]/gi, '')
     .replace(/\[HUMANO:[^\]]*\]/gi, '')
+    .replace(/\[ORIGEN:[^\]]*\]/gi, '')
     .replace(/\[FOTO:[^\]]*\]/gi, '')
     .replace(/\[Fotos ya enviadas:[^\]]*\]/gi, '')
     .trim();
-  return { texto, venta: ventas[0] || null, ventas, humano: humano ? humano[1].trim() : null, fotos };
+  return { texto, venta: ventas[0] || null, ventas, humano: humano ? humano[1].trim() : null, fotos, origen: origen ? origen[1].trim() : null };
 }
 
 module.exports = { responderCliente, formatearPrecio };

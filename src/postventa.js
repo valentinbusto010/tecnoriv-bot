@@ -206,7 +206,7 @@ async function armarResumen() {
   const mesPasado = sumarDias(mes, -1).slice(0, 8) + '01';
   const mismoDiaMesPasado = sumarDias(mesPasado, Number(hoy.slice(8)) - 2);
   const [{ data: ped }, { data: gas }, { data: prods }, { data: piezas }, { data: autos }] = await Promise.all([
-    supabase.from('pedidos').select('id, fecha, cliente, producto, monto, costo, estado').gte('fecha', mesPasado).limit(5000),
+    supabase.from('pedidos').select('id, fecha, cliente, cliente_id, producto, monto, costo, estado').gte('fecha', mesPasado).limit(5000),
     supabase.from('gastos').select('monto, categoria, fecha').gte('fecha', mes).limit(2000),
     supabase.from('productos').select('nombre, stock, alerta, activo'),
     supabase.from('piezas').select('titulo, formato, estado, programado_para').eq('estado', 'programado').order('programado_para').limit(20),
@@ -227,6 +227,13 @@ async function armarResumen() {
   const seg = (autos || []).filter((a) => a.tipo === 'seguimiento' && a.estado === 'enviado').length;
   const rec = (autos || []).filter((a) => a.tipo === 'recompra' && a.estado === 'enviado').length;
   const variacion = suma(comparable) ? Math.round(((suma(delMes) - suma(comparable)) / suma(comparable)) * 100) : null;
+  // De dónde vinieron los que compraron este mes (lo que contestan al bot en "¿Cómo nos conociste?")
+  const idsMes = [...new Set(delMes.map((p) => p.cliente_id).filter(Boolean))];
+  const { data: origenes } = idsMes.length ? await supabase.from('clientes').select('origen').in('id', idsMes) : { data: [] };
+  const { ORIGENES } = require('./gestion');
+  const conteo = {};
+  for (const c of origenes || []) if (ORIGENES.includes(c.origen)) conteo[c.origen] = (conteo[c.origen] || 0) + 1;
+  const deDonde = Object.entries(conteo).sort((a, b) => b[1] - a[1]).map(([o, n]) => `${o} ${n}`).join(' · ');
   const hora = (ts) => new Date(ts).toLocaleTimeString('es-AR', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false });
   const diaTxt = new Date().toLocaleDateString('es-AR', { timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -254,6 +261,7 @@ async function armarResumen() {
     bajos.length ? `⚠️ *Stock bajo:* ${bajos.slice(0, 6).join(', ')}${bajos.length > 6 ? '…' : ''}` : '',
     '',
     paraHoy.length ? `📅 *Contenido de hoy:*\n${paraHoy.map((p) => `• ${hora(p.programado_para)} ${p.titulo}`).join('\n')}` : '📅 Nada programado para hoy en Instagram: publicá algo para no perder alcance.',
+    deDonde ? `🧭 *Clientes del mes por canal:* ${deDonde}` : '',
     seg + rec ? `🤝 *Postventa ayer:* ${seg} seguimiento${seg === 1 ? '' : 's'} · ${rec} oferta${rec === 1 ? '' : 's'}` : '',
     consejo ? `\n💡 *Consejo:* ${consejo}` : '',
   ];

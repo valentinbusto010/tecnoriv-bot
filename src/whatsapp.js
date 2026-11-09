@@ -15,15 +15,35 @@ async function enviar(to, cuerpo) {
 
 const enviarTexto = (to, body) => enviar(to, { type: 'text', text: { body } });
 const enviarImagen = (to, link, caption) => enviar(to, { type: 'image', image: { link, caption } });
-// Botón "Ver catálogo": abre el catálogo de Meta conectado a la cuenta, dentro del chat (sirve aunque el ícono del perfil tarde en aparecer).
-const enviarCatalogo = (to, texto, miniatura) => enviar(to, {
-  type: 'interactive',
-  interactive: {
-    type: 'catalog_message',
-    body: { text: texto },
-    action: { name: 'catalog_message', ...(miniatura ? { parameters: { thumbnail_product_retailer_id: miniatura } } : {}) },
-  },
-});
+// Botón "Ver catálogo 🛍️" (texto en español): abre el catálogo nativo de WhatsApp con el link oficial wa.me/c/<número>.
+// El mensaje "catalog_message" de Meta no deja cambiar el texto del botón (sale "View catalog"), por eso va como cta_url;
+// si falla, se manda igual el catalog_message.
+let numeroBot = null;
+async function numeroDelBot() {
+  if (process.env.WA_NUMERO_BOT) return process.env.WA_NUMERO_BOT.replace(/\D/g, '');
+  if (numeroBot) return numeroBot;
+  const { data } = await axios.get(`https://graph.facebook.com/v21.0/${process.env.PHONE_NUMBER_ID}`, { headers: headers(), params: { fields: 'display_phone_number' }, timeout: 20000 });
+  numeroBot = String(data.display_phone_number || '').replace(/\D/g, '');
+  return numeroBot;
+}
+
+async function enviarCatalogo(to, texto) {
+  try {
+    const numero = await numeroDelBot();
+    if (!numero) throw new Error('sin número');
+    return await enviar(to, {
+      type: 'interactive',
+      interactive: {
+        type: 'cta_url',
+        body: { text: texto },
+        action: { name: 'cta_url', parameters: { display_text: 'Ver catálogo 🛍️', url: `https://wa.me/c/${numero}` } },
+      },
+    });
+  } catch (e) {
+    console.error('Botón de catálogo en español falló, mando el de Meta:', e.response?.data?.error?.message || e.message);
+    return enviar(to, { type: 'interactive', interactive: { type: 'catalog_message', body: { text: texto }, action: { name: 'catalog_message' } } });
+  }
+}
 
 // Las variables de una plantilla no pueden tener saltos de línea, tabs ni más de 4 espacios seguidos.
 const limpiarParam = (t) => String(t ?? '').replace(/[\n\t\r]+/g, ' · ').replace(/ {2,}/g, ' ').trim().slice(0, 900) || '-';

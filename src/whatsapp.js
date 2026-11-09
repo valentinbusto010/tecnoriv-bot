@@ -15,6 +15,15 @@ async function enviar(to, cuerpo) {
 
 const enviarTexto = (to, body) => enviar(to, { type: 'text', text: { body } });
 const enviarImagen = (to, link, caption) => enviar(to, { type: 'image', image: { link, caption } });
+// Botón "Ver catálogo": abre el catálogo de Meta conectado a la cuenta, dentro del chat (sirve aunque el ícono del perfil tarde en aparecer).
+const enviarCatalogo = (to, texto, miniatura) => enviar(to, {
+  type: 'interactive',
+  interactive: {
+    type: 'catalog_message',
+    body: { text: texto },
+    action: { name: 'catalog_message', ...(miniatura ? { parameters: { thumbnail_product_retailer_id: miniatura } } : {}) },
+  },
+});
 
 // Las variables de una plantilla no pueden tener saltos de línea, tabs ni más de 4 espacios seguidos.
 const limpiarParam = (t) => String(t ?? '').replace(/[\n\t\r]+/g, ' · ').replace(/ {2,}/g, ' ').trim().slice(0, 900) || '-';
@@ -165,6 +174,7 @@ async function conectarCatalogoWA({ wabaId, catalogId, visible = true }) {
 }
 
 module.exports = {
+  enviarCatalogo,
   estadoCatalogoWA, conectarCatalogoWA,
   enviarTexto, enviarImagen, enviarPlantilla, explicarErrorWA, destino, activarNumero, limpiarParam, crearPlantillas,
   leerPerfil, guardarPerfil, subirFotoPerfil, LIMITES, RUBROS,

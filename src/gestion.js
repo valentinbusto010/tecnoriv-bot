@@ -196,6 +196,7 @@ const AYUDA_DUENO = `Comandos:
 • gasto 15000 marketing Meta Ads
 • gasto 35k stock reposición cables
 • resumen → ventas y gastos del mes
+• catalogo → te manda el botón "Ver catálogo" para probarlo
 • hoy → el resumen diario completo (ventas de ayer, pendientes, stock, consejo)
 Categorías: ${CATEGORIAS_GASTO.join(', ')}`;
 

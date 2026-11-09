@@ -82,6 +82,8 @@ COMPLEMENTOS (sumar un accesorio a la venta):
 - No inventes descuentos por llevar los dos. Podés decir que va en el mismo envío o retiro, sin costo extra.
 - Si el cliente compra solo un accesorio barato, no ofrezcas nada más.
 
+VER CATÁLOGO: si el cliente pide ver productos o el catálogo en general ("qué tienen", "pasame precios", "qué smartwatch hay", "catálogo", "lista"), o si en su primer mensaje no pregunta por un producto concreto, agregá al final de tu mensaje exactamente [CATALOGO]: le llega un botón "Ver catálogo" para mirar todo con fotos y precios y armar el carrito. Igual respondé su pregunta en texto, corto. Si en la conversación ya figura [Catálogo enviado], no lo vuelvas a mandar salvo que lo pida de nuevo. Nunca escribas vos esa nota.
+
 MANDAR FOTOS: si el cliente pregunta por un producto concreto que en el catálogo dice "tiene foto", agregá al final de tu mensaje [FOTO: nombre exacto del producto como figura en el catálogo]. Máximo 2 fotos por mensaje. Mandá la foto solo la primera vez que hablás de ese producto en la conversación, o si el cliente la pide. Si en la conversación ya figura [Fotos ya enviadas: X], NO vuelvas a mandar la foto de X salvo que el cliente la pida de nuevo explícitamente. Nunca escribas vos esa línea [Fotos ya enviadas: …]: es una nota interna.
 
 FOTOS DEL CLIENTE: si el cliente manda una foto, identificá qué producto es y buscá el más parecido en el catálogo. Si no lo tenemos, decilo y ofrecé una alternativa. Si no se entiende la foto, preguntá qué producto busca.
@@ -178,9 +180,12 @@ async function responderCliente(historial, imagen = null, extra = '') {
     .replace(/\[HUMANO:[^\]]*\]/gi, '')
     .replace(/\[ORIGEN:[^\]]*\]/gi, '')
     .replace(/\[FOTO:[^\]]*\]/gi, '')
+    .replace(/\[CATALOGO\]/gi, '')
+    .replace(/\[Cat[aá]logo enviado\]/gi, '')
     .replace(/\[Fotos ya enviadas:[^\]]*\]/gi, '')
     .trim();
-  return { texto, venta: ventas[0] || null, ventas, humano: humano ? humano[1].trim() : null, fotos, origen: origen ? origen[1].trim() : null };
+  const catalogo = /\[CATALOGO\]/i.test(respuesta);
+  return { texto, venta: ventas[0] || null, ventas, humano: humano ? humano[1].trim() : null, fotos, origen: origen ? origen[1].trim() : null, catalogo };
 }
 
 module.exports = { responderCliente, formatearPrecio };

@@ -43,6 +43,7 @@ async function descargarMedia(mediaId) {
 }
 
 const AVISO_AUDIO = 'Por ahora no puedo escuchar audios 🙏 ¿Me lo escribís? Así te respondo al toque.';
+const CATALOGO_TXT = 'Mirá todos los productos con fotos y precios, y armá tu pedido acá 👇 Lo mandás y te confirmamos al toque.';
 const AVISO_OTRO = 'Por ahora solo puedo leer mensajes de texto y fotos. ¿Me escribís tu consulta? 🙌';
 
 // Texto libre si el dueño escribió en las últimas 23 h; si no, plantilla tr_aviso (ver src/postventa.js).
@@ -86,6 +87,13 @@ app.post('/webhook', async (req, res) => {
 
     // Comandos del dueño (gasto, resumen, ayuda): se responden sin pasar por la IA.
     if (gestion.esDueno(from)) postventa.duenoEscribio(); // abre la ventana de 24 h para el resumen completo
+    // "catalogo" desde el WhatsApp del dueño: te manda el botón para probar el catálogo.
+    if (message.type === 'text' && gestion.esDueno(from) && /^cat[aá]logo$/i.test(message.text.body.trim())) {
+      await wa.enviarCatalogo(from, CATALOGO_TXT).catch(async (e) => {
+        await enviarWhatsApp(from, `No se pudo mandar el catálogo: ${wa.explicarErrorWA(e)}`);
+      });
+      return;
+    }
     if (message.type === 'text' && gestion.esDueno(from)) {
       const respuesta = await gestion.comandoDueno(message.text.body).catch((e) => `Error: ${e.message}`);
       if (respuesta) {
@@ -141,7 +149,7 @@ app.post('/webhook', async (req, res) => {
     const conocido = await gestion.origenDe(from).catch(() => null);
     const extra = (await postventa.contextoCliente(from).catch(() => '')) +
       (conocido ? `\nCÓMO NOS CONOCIÓ: ya lo sabemos (${conocido}), no lo preguntes.` : '');
-    const { texto, ventas, humano, fotos, origen } = await responderCliente([...historial, { role: 'user', content: text }], imagen, extra);
+    const { texto, ventas, humano, fotos, origen, catalogo: verCatalogo } = await responderCliente([...historial, { role: 'user', content: text }], imagen, extra);
 
     const enviadas = [];
     for (const foto of fotos) {
@@ -151,8 +159,15 @@ app.post('/webhook', async (req, res) => {
       );
     }
     await enviarWhatsApp(from, texto);
-    // Nota interna en el historial (el cliente no la ve) para que el bot no repita las fotos.
-    await guardarMensaje(from, 'assistant', texto + (enviadas.length ? `\n[Fotos ya enviadas: ${enviadas.join(', ')}]` : ''));
+    let catalogoEnviado = false;
+    if (verCatalogo) {
+      await wa.enviarCatalogo(from, CATALOGO_TXT).then(
+        () => { catalogoEnviado = true; },
+        (e) => console.error('No se pudo mandar el catálogo:', e.response?.data?.error?.message || e.message)
+      );
+    }
+    // Nota interna en el historial (el cliente no la ve) para que el bot no repita las fotos ni el catálogo.
+    await guardarMensaje(from, 'assistant', texto + (enviadas.length ? `\n[Fotos ya enviadas: ${enviadas.join(', ')}]` : '') + (catalogoEnviado ? '\n[Catálogo enviado]' : ''));
     console.log(`Respuesta enviada a ${from}`);
 
     if (ventas.length) {

@@ -35,13 +35,17 @@ async function promoVigente() {
 const precioPromo = (precio, promo) =>
   promo && promo.descuento ? Math.round(Number(precio) * (1 - promo.descuento / 100)) : Number(precio);
 
-// Precio pagando en efectivo (descuento de negocio.descuentoEfectivo sobre el precio dado). Sin descuento, igual.
-const precioEfectivo = (precio) => {
-  const d = Number(negocio.descuentoEfectivo) || 0;
+// % de descuento en efectivo que corre hoy: si hay promo con % OFF y negocio.efectivoConPromo es false, no se suma (0).
+const efectivoVigente = (promo) =>
+  promo && promo.descuento && !negocio.efectivoConPromo ? 0 : Number(negocio.descuentoEfectivo) || 0;
+
+// Precio pagando en efectivo sobre el precio dado (ya con promo). Pasá la promo vigente para respetar si se suma o no.
+const precioEfectivo = (precio, promo = null) => {
+  const d = efectivoVigente(promo);
   return d > 0 ? Math.round(Number(precio) * (1 - d / 100)) : Number(precio);
 };
 
 // "2026-10-31" -> "31/10"
 const fechaCorta = (f) => (f ? `${f.slice(8, 10)}/${f.slice(5, 7)}` : '');
 
-module.exports = { hoyAR, leerAjustes, invalidarAjustes, promoDe, promoVigente, precioPromo, precioEfectivo, fechaCorta };
+module.exports = { hoyAR, leerAjustes, invalidarAjustes, promoDe, promoVigente, precioPromo, precioEfectivo, efectivoVigente, fechaCorta };

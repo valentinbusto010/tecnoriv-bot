@@ -8,7 +8,7 @@ const express = require('express');
 const { supabase } = require('./datos');
 const negocio = require('./negocio');
 const wa = require('./whatsapp');
-const { promoVigente, precioPromo, precioEfectivo } = require('./promo');
+const { promoVigente, precioPromo, precioEfectivo, efectivoVigente } = require('./promo');
 
 const TZ = 'America/Argentina/Buenos_Aires';
 const hoyAR = (d = new Date()) => d.toLocaleDateString('en-CA', { timeZone: TZ });
@@ -334,7 +334,7 @@ async function contextoCliente(telefono) {
   if (!p) return '';
   const base = promo?.descuento ? precioPromo(p.precio, promo) : Number(p.precio);
   const precio = Math.round(base * (1 - b.descuento / 100));
-  return `\nBENEFICIO DE ESTE CLIENTE (se lo ofrecimos por WhatsApp): ${b.nombre} con ${b.descuento}% OFF hasta el ${fechaCorta(b.hasta)} → ${fmt(precio)}${negocio.descuentoEfectivo ? ` (efectivo ${fmt(precioEfectivo(precio))})` : ''}. Si lo quiere, respetá ese precio en la confirmación y en la marca [VENTA].`;
+  return `\nBENEFICIO DE ESTE CLIENTE (se lo ofrecimos por WhatsApp): ${b.nombre} con ${b.descuento}% OFF hasta el ${fechaCorta(b.hasta)} → ${fmt(precio)}${efectivoVigente(promo) ? ` (efectivo ${fmt(precioEfectivo(precio, promo))})` : ''}. Si lo quiere, respetá ese precio en la confirmación y en la marca [VENTA].`;
 }
 
 // ───────── PROGRAMADOR ─────────

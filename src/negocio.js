@@ -13,6 +13,8 @@ module.exports = {
   // Descuento pagando en efectivo (%). Se aplica sobre el precio que ve el cliente (incluida la promo, si hay).
   // Lo usan el catálogo, el bot y el registro de ventas. Poné 0 para sacarlo.
   descuentoEfectivo: 10,
+  // ¿El descuento en efectivo se suma a una promo con % OFF? false = durante la promo el efectivo paga lo mismo.
+  efectivoConPromo: false,
   horario: 'Lunes a sábado de 9 a 20 hs',
   // Catálogo de Meta (Commerce Manager) que se muestra en el perfil de WhatsApp. Se llena solo con /catalogo/meta.csv
   catalogoMeta: '3546779688833637',

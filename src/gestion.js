@@ -152,7 +152,7 @@ async function registrarVenta(telefono, resumen, nombrePerfil) {
   }
   // Pago en efectivo: se registra con el descuento por efectivo (el regalo sigue en $0).
   if (v.producto && !v.regalo && /efectivo/i.test(v.pago || '')) {
-    v.monto = precioEfectivo(v.monto / v.cantidad) * v.cantidad;
+    v.monto = precioEfectivo(v.monto / v.cantidad, promo) * v.cantidad;
   }
 
   // Evita cargar dos veces la misma venta si el cliente vuelve a confirmar.

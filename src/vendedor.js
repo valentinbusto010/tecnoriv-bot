@@ -1,7 +1,7 @@
 const negocio = require('./negocio');
 const { responderChat } = require('./claude');
 const { obtenerProductos, obtenerFaqs } = require('./datos');
-const { promoVigente, precioPromo, precioEfectivo, fechaCorta } = require('./promo');
+const { promoVigente, precioPromo, precioEfectivo, efectivoVigente, fechaCorta } = require('./promo');
 
 function formatearPrecio(n) {
   return '$' + Math.round(Number(n)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
@@ -11,11 +11,11 @@ async function armarInstrucciones(productos) {
   const [faqs, promo] = await Promise.all([obtenerFaqs(), promoVigente()]);
   const regalo = promo?.regaloId ? productos.find((p) => p.id === promo.regaloId) : null;
   const hayRegalo = Boolean(regalo && regalo.stock > 0);
-  const dEfectivo = Number(negocio.descuentoEfectivo) || 0;
+  const dEfectivo = efectivoVigente(promo);
   const precioTxt = (p) => {
     const base = promo && promo.descuento ? precioPromo(p.precio, promo) : Number(p.precio);
     const txt = promo && promo.descuento ? `${formatearPrecio(p.precio)} → PROMO ${formatearPrecio(base)}` : formatearPrecio(base);
-    return dEfectivo ? `${txt} (efectivo ${formatearPrecio(precioEfectivo(base))})` : txt;
+    return dEfectivo ? `${txt} (efectivo ${formatearPrecio(precioEfectivo(base, promo))})` : txt;
   };
 
   const catalogo = productos.length
@@ -37,7 +37,7 @@ PROMO VIGENTE (hasta el ${fechaCorta(promo.hasta)} inclusive):${promo.descuento 
 - REGALO: con cada producto de la categoría ${promo.regaloCategoria}, el cliente se lleva de regalo 1 ${regalo.nombre} (hasta agotar stock). Mencionalo cuando cotices uno de esos productos, es un gancho de venta.
 - En el cierre de una venta que lleva regalo, agregá una marca extra para el regalo con la palabra REGALO en el precio: [VENTA: ${regalo.nombre} | 1 | REGALO | nombre | entrega | pago]
 - A quien recibe ${regalo.nombre} de regalo no se lo ofrezcas como complemento pago.` : ''}
-- La promo solo se suma con el descuento por pago en efectivo: no inventes otros descuentos.
+${efectivoVigente(promo) ? '- La promo solo se suma con el descuento por pago en efectivo: no inventes otros descuentos.' : '- Durante esta promo NO hay descuento extra por pagar en efectivo: el precio PROMO es el mismo con cualquier medio de pago. Si preguntan por el descuento en efectivo, explicá que ya está incluido en el precio promo. No inventes otros descuentos.'}
 `;
 
   return `Sos el vendedor de ${negocio.nombre}, tienda de tecnología de ${negocio.ciudad} (Instagram ${negocio.instagram}).

@@ -6,7 +6,7 @@ const express = require('express');
 const { supabase } = require('./datos');
 const negocio = require('./negocio');
 const { llamarClaude, MODELO_TEXTOS } = require('./claude');
-const { promoVigente, precioPromo, precioEfectivo } = require('./promo');
+const { promoVigente, precioPromo, precioEfectivo, efectivoVigente } = require('./promo');
 const gestion = require('./gestion');
 
 const TZ = 'America/Argentina/Buenos_Aires';
@@ -177,7 +177,7 @@ async function fotoNegocio() {
     const precio = Number(p.precio) || 0;
     const final = promo?.descuento ? precioPromo(precio, promo) : precio;
     const margen = p.costo ? Math.round(((final - p.costo) / final) * 100) + '%' : 's/costo';
-    return [p.id, p.nombre, p.categoria || '-', fmt(precio), final !== precio ? fmt(final) : '', fmt(precioEfectivo(final)), p.costo ? fmt(p.costo) : '-', margen, p.stock, p.alerta, vendidas30[p.id] || 0, p.activo === false ? 'PAUSADO' : '', p.imagen_url ? 'foto' : 'SIN FOTO'].join(' | ');
+    return [p.id, p.nombre, p.categoria || '-', fmt(precio), final !== precio ? fmt(final) : '', fmt(precioEfectivo(final, promo)), p.costo ? fmt(p.costo) : '-', margen, p.stock, p.alerta, vendidas30[p.id] || 0, p.activo === false ? 'PAUSADO' : '', p.imagen_url ? 'foto' : 'SIN FOTO'].join(' | ');
   });
   const lineasPed = pedidos.slice(0, 150).map((p) => [p.id, p.fecha, p.cliente, p.producto || nombreProd[p.producto_id] || '-', p.cantidad, fmt(p.monto), p.costo != null ? fmt(p.costo) : '-', p.estado, p.pago || '-', p.canal || '-'].join(' | '));
   const lineasGas = (gas.data || []).slice(0, 80).map((g) => [g.fecha, g.categoria, fmt(g.monto), g.descripcion].join(' | '));
@@ -192,7 +192,7 @@ async function fotoNegocio() {
 MES EN CURSO (calculado): ventas ${fmt(tot.ventas)} en ${tot.pedidos} pedidos (${tot.unidades} unidades) · costo de lo vendido ${fmt(tot.costoVendido)} · gastos operativos ${fmt(tot.gastosOperativos)} · compras de stock ${fmt(tot.comprasStock)} · GANANCIA REAL ${fmt(tot.ganancia)}${tot.sinCosto ? ` (ojo: ${tot.sinCosto} ventas sin costo cargado)` : ''} · pendientes de entregar: ${pedidos.filter((p) => p.estado === 'pendiente').length}.
 Clientes registrados: ${cli.count ?? '?'}.
 PROMO: ${promo ? `${promo.descuento}% OFF hasta ${promo.hasta}${promo.regaloId ? ` + regalo "${nombreProd[promo.regaloId] || promo.regaloId}" en ${promo.regaloCategoria}` : ''}` : 'ninguna vigente'}.
-Descuento por pago en efectivo: ${negocio.descuentoEfectivo || 0}% (se suma a la promo).
+Descuento por pago en efectivo hoy: ${efectivoVigente(promo)}%${promo?.descuento && !efectivoVigente(promo) ? ' (no se suma a la promo: durante la promo efectivo paga el precio promo)' : ''}.
 
 PRODUCTOS (id | nombre | categoría | precio lista | precio con promo | precio efectivo | costo | margen | stock | alerta | vendidas 30d | estado | foto):
 ${lineasProd.join('\n')}
@@ -221,7 +221,7 @@ ACCIONES (cargar venta, gasto, stock, precios, promo, crear o programar contenid
 - Cuando Valen pida un cambio, llamá directamente a la herramienta: NO se ejecuta hasta que él toque "Confirmar" en la tarjeta. No le preguntes "¿confirmás?" en texto.
 - Si falta un dato imprescindible (qué producto, cuánto), preguntá antes en una sola línea. Lo que tenga un valor obvio, completalo (cantidad 1, fecha hoy, estado pendiente, canal WhatsApp).
 - Identificá productos por su id de la lista. Si hay dos parecidos y no está claro, preguntá cuál.
-- Venta: monto = total cobrado. Usá el precio con promo si hay promo vigente; si paga en efectivo aplicá además el ${negocio.descuentoEfectivo || 0}% (columna "precio efectivo"). Si Valen dice el monto, respetalo.
+- Venta: monto = total cobrado. Usá el precio con promo si hay promo vigente; si paga en efectivo usá la columna "precio efectivo" (ya trae el descuento que corresponde hoy). Si Valen dice el monto, respetalo.
 - Podés proponer varias acciones juntas si te las pide (ej. "llegaron 5 de cada uno").
 - Contenido: para carrusel/post/historias elegí la plantilla que mejor encaje y escribí en "tema" el ángulo y el gancho. Si pide programar, horarios que suelen rendir en Instagram AR: 12–14 h y 19–22 h.
 

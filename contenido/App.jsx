@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Fondo, Marca3D, MiniLogo, card, fieldSt, chipSt, btnFondo } from "../compartido/tema.jsx";
 import Asistente from "../compartido/Asistente.jsx";
@@ -716,6 +716,26 @@ function ResultadoIA({ im, productos, onEditar, onCambio }) {
   );
 }
 
+// Videos con Remotion: el paquete pesado (public/contenido-videos.js) se baja solo al abrir esta pestaña.
+function VideosRemotion({ datos }) {
+  const ref = useRef(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let desmontar = null, vivo = true;
+    const montar = () => { if (vivo && ref.current && window.TRVideos) desmontar = window.TRVideos.montar(ref.current, { datos, api }); };
+    if (window.TRVideos) montar();
+    else {
+      const sc = document.createElement("script");
+      sc.src = "/contenido-videos.js?v=1";
+      sc.onload = montar;
+      sc.onerror = () => setError("No se pudo cargar el editor de videos. Revisá la conexión y volvé a abrir la pestaña.");
+      document.body.appendChild(sc);
+    }
+    return () => { vivo = false; desmontar?.(); };
+  }, []); // eslint-disable-line
+  return <div>{error ? <div style={{ color: "#fca5a5" }}>{error}</div> : <div ref={ref}><div style={{ ...card, padding: "40px", textAlign: "center", color: "#6b7280" }}>Cargando editor de videos…</div></div>}</div>;
+}
+
 function EstudioIA({ datos }) {
   const [modo, setModo] = useState("crear");
   const [estado, setEstado] = useState(null);
@@ -771,12 +791,7 @@ function EstudioIA({ datos }) {
         </div>
       )}
 
-      {modo === "videos" ? (
-        <div style={{ ...card, padding: "18px", color: "#d1d5db", fontSize: "14px", lineHeight: 1.6 }}>
-          <div style={{ fontWeight: 700, color: "#fff", fontSize: "16px", marginBottom: "6px" }}>🎬 Videos con Remotion · próximamente</div>
-          Reels 9:16 animados con tus fotos de la galería, precios, promo y logo: <b>Reel de producto</b>, <b>Promo / oferta</b> con cuenta regresiva, <b>precio antes/después</b> y <b>catálogo animado</b>. Se previsualizan acá y se exportan en MP4.
-        </div>
-      ) : (
+      {modo === "videos" ? <VideosRemotion datos={datos} /> : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "16px", alignItems: "start" }}>
           <div style={{ ...card, padding: "16px" }}>
             {modo === "editar" ? (

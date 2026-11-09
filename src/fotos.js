@@ -78,12 +78,15 @@ async function elegirVarias(cuentas, excluir = []) {
   const { data, error } = await supabase.from('producto_fotos').select('producto_id, url, usos, ultimo_uso').in('producto_id', ids);
   if (error) return {};
   const evitar = new Set(excluir);
+  const elegidas = new Set(); // dentro de la misma pieza nunca dos veces la misma foto (ej. fundas que comparten fotos)
   const out = {};
   for (const id of ids) {
     const fotos = (data || []).filter((f) => f.producto_id === id)
       .map((f) => ({ ...f, r: Math.random() }))
-      .sort((a, b) => (evitar.has(a.url) - evitar.has(b.url)) || (a.usos || 0) - (b.usos || 0) || String(a.ultimo_uso || '').localeCompare(String(b.ultimo_uso || '')) || a.r - b.r);
-    if (fotos.length) out[id] = fotos.slice(0, Math.max(1, cuentas[id])).map((f) => f.url);
+      .sort((a, b) => (elegidas.has(a.url) - elegidas.has(b.url)) || (evitar.has(a.url) - evitar.has(b.url)) || (a.usos || 0) - (b.usos || 0) || String(a.ultimo_uso || '').localeCompare(String(b.ultimo_uso || '')) || a.r - b.r);
+    if (!fotos.length) continue;
+    out[id] = fotos.slice(0, Math.max(1, cuentas[id])).map((f) => f.url);
+    out[id].forEach((u) => elegidas.add(u));
   }
   return out;
 }

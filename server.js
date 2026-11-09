@@ -46,6 +46,22 @@ const AVISO_AUDIO = 'Por ahora no puedo escuchar audios 🙏 ¿Me lo escribís? 
 const AVISO_OTRO = 'Por ahora solo puedo leer mensajes de texto y fotos. ¿Me escribís tu consulta? 🙌';
 
 // Texto libre si el dueño escribió en las últimas 23 h; si no, plantilla tr_aviso (ver src/postventa.js).
+// Convierte el carrito de WhatsApp en un texto que entiende el bot de ventas.
+async function textoPedidoCatalogo(order = {}) {
+  const items = order.product_items || [];
+  const ids = items.map((i) => catalogo.idDesdeMeta(i.product_retailer_id)).filter(Boolean);
+  const { supabase } = require('./src/datos');
+  const { data: prods } = ids.length && supabase ? await supabase.from('productos').select('id, nombre').in('id', ids) : { data: [] };
+  let total = 0;
+  const lineas = items.map((i) => {
+    const p = (prods || []).find((x) => x.id === catalogo.idDesdeMeta(i.product_retailer_id));
+    const cant = Number(i.quantity) || 1;
+    total += (Number(i.item_price) || 0) * cant;
+    return `${cant}x ${p ? p.nombre : i.product_retailer_id} (${gestion.fmt(i.item_price)} c/u)`;
+  });
+  return `[PEDIDO DESDE EL CATÁLOGO DE WHATSAPP] ${lineas.join(', ')}. Total del carrito: ${gestion.fmt(total)}.${order.text ? ' Nota del cliente: ' + order.text : ''}`;
+}
+
 async function avisarDueno(texto) {
   const r = await postventa.avisarDueno(texto).catch((e) => ({ ok: false, error: e.message }));
   if (!r.ok) console.error('No se pudo avisar al dueño:', r.error);
@@ -93,7 +109,7 @@ app.post('/webhook', async (req, res) => {
     }
 
     // Audios, stickers, ubicaciones, etc.: respuesta fija, sin gastar IA.
-    if (message.type !== 'text' && message.type !== 'image') {
+    if (!['text', 'image', 'order'].includes(message.type)) {
       console.log(`Mensaje de ${from}: [${message.type}]`);
       const aviso = message.type === 'audio' ? AVISO_AUDIO : AVISO_OTRO;
       await enviarWhatsApp(from, aviso);
@@ -104,7 +120,10 @@ app.post('/webhook', async (req, res) => {
 
     let text;
     let imagen = null;
-    if (message.type === 'image') {
+    if (message.type === 'order') {
+      // Carrito armado desde el catálogo del perfil de WhatsApp
+      text = await textoPedidoCatalogo(message.order).catch(() => '[El cliente mandó un pedido desde el catálogo de WhatsApp]');
+    } else if (message.type === 'image') {
       const caption = message.image.caption?.trim() || '';
       text = `[El cliente mandó una foto]${caption ? ' ' + caption : ''}`;
       try {
@@ -220,6 +239,8 @@ app.use('/api/gestion', gestion.router(chequearClave, explicarError));
 app.get('/catalogo', (req, res) => res.sendFile(path.join(__dirname, 'public', 'catalogo.html')));
 app.get('/catalogo.js', (req, res) => res.sendFile(path.join(__dirname, 'public', 'catalogo.js')));
 app.get('/api/catalogo', catalogo.api);
+// Feed para el catálogo de Meta (WhatsApp / Instagram): Meta lo lee solo cada hora
+app.get('/catalogo/meta.csv', catalogo.feedMeta);
 
 // Estudio de contenido: carruseles, posts, historias y Marketplace (app aparte, misma contraseña)
 app.get('/contenido', (req, res) => res.sendFile(path.join(__dirname, 'public', 'contenido.html')));
@@ -305,6 +326,32 @@ app.put('/api/whatsapp/perfil', chequearClave, async (req, res) => {
   } catch (error) {
     console.error('Guardar perfil WhatsApp:', error.response?.data || error.message);
     res.status(500).json({ error: wa.explicarErrorWA(error) });
+  }
+});
+
+// Catálogo de Meta en WhatsApp: estado y conexión (ícono de tienda + carrito)
+app.get('/api/whatsapp/catalogo', chequearClave, async (req, res) => {
+  const negocio = require('./src/negocio');
+  const base = (process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || `https://${req.get('host')}`).replace(/\/$/, '');
+  const info = { catalogId: process.env.META_CATALOG_ID || negocio.catalogoMeta || '', feedUrl: `${base}/catalogo/meta.csv` };
+  if (!process.env.PHONE_NUMBER_ID || !process.env.WHATSAPP_TOKEN) return res.json({ ...info, error: 'Faltan WHATSAPP_TOKEN o PHONE_NUMBER_ID en Render.' });
+  try {
+    res.json({ ...info, ...(await wa.estadoCatalogoWA(String(req.query.wabaId || '').replace(/\D/g, ''))) });
+  } catch (error) {
+    res.json({ ...info, error: wa.explicarErrorWA(error) });
+  }
+});
+
+app.post('/api/whatsapp/catalogo', chequearClave, async (req, res) => {
+  const wabaId = String(req.body.wabaId || '').replace(/\D/g, '');
+  const catalogId = String(req.body.catalogId || '').replace(/\D/g, '');
+  if (req.body.visible !== false && !wabaId) return res.status(400).json({ error: 'Falta el ID de la cuenta de WhatsApp (WhatsApp Business Account ID).' });
+  try {
+    res.json(await wa.conectarCatalogoWA({ wabaId, catalogId, visible: req.body.visible !== false }));
+  } catch (error) {
+    console.error('Catálogo WhatsApp:', error.response?.data || error.message);
+    const e = error.response?.data?.error;
+    res.status(500).json({ error: e?.error_user_msg || wa.explicarErrorWA(error) });
   }
 });
 

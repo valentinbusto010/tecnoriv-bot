@@ -80,7 +80,8 @@ export default function App() {
   const [buscar, setBuscar] = useState("");
   const [cat, setCat] = useState("Todo");
   const [carrito, setCarrito] = useState(() => leer("carritoTR", {}));
-  const [abierto, setAbierto] = useState(null);
+  // ?p=42 abre ese producto (lo usan los links del catálogo de WhatsApp/Instagram)
+  const [abierto, setAbierto] = useState(() => { try { return Number(new URLSearchParams(window.location.search).get("p")) || null; } catch { return null; } });
   const [verCarrito, setVerCarrito] = useState(false);
   const [, setTic] = useState(0);
 

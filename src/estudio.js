@@ -285,6 +285,8 @@ function normalizarSlides(slides, formato, elegidos) {
     items_b: s.items_b || [],
     producto_id: ids.has(Number(s.producto_id)) ? Number(s.producto_id) : 0,
     producto_id_b: ids.has(Number(s.producto_id_b)) ? Number(s.producto_id_b) : 0,
+    // Foto elegida a mano para esta slide (desde el editor de /contenido). Vacío = la elige el sistema.
+    foto: typeof s.foto === 'string' && /^https:\/\//.test(s.foto) ? s.foto : '',
   }));
   for (const s of out) {
     if (s.tipo === 'producto' && !s.producto_id) s.tipo = 'texto';
@@ -330,7 +332,9 @@ async function dibujarGuion({ formato, slides, productos, promo, galeria = null 
   }));
   const primera = usados.find((id) => fotos.has(id));
   const vuelta = new Map();
+  let forzada = null; // foto elegida a mano para la slide que se está dibujando (se usa una vez)
   const siguiente = (id) => {
+    if (forzada) { const f = forzada; forzada = null; return f; }
     const lista = fotos.get(Number(id));
     if (!lista) return null;
     const k = vuelta.get(Number(id)) || 0;
@@ -343,10 +347,19 @@ async function dibujarGuion({ formato, slides, productos, promo, galeria = null 
     fotoDe: (id) => (id ? siguiente(id) : null),
   };
   // Cada vez que una slide pide la foto principal, toma la siguiente del primer producto.
-  Object.defineProperty(ctx, 'fotoPrincipal', { get: () => (primera ? siguiente(primera) : null) });
+  Object.defineProperty(ctx, 'fotoPrincipal', { get: () => (primera || forzada ? siguiente(primera) : null), configurable: true });
   const imagenes = [];
+  const manuales = new Map();
   for (let i = 0; i < slides.length; i++) {
     ctx.n = i + 1;
+    forzada = null;
+    const url = slides[i].foto;
+    if (url) {
+      try {
+        if (!manuales.has(url)) manuales.set(url, await bajarFoto(url));
+        forzada = manuales.get(url);
+      } catch (e) { console.error('No se pudo bajar la foto elegida:', e.message); }
+    }
     imagenes.push(await (DIBUJAR[slides[i].tipo] || slideTexto)(slides[i], H, ctx));
   }
   return imagenes;

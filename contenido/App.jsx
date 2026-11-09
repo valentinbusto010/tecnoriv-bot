@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { Fondo, Marca3D, MiniLogo, card, fieldSt, chipSt, btnFondo } from "../compartido/tema.jsx";
 import Asistente from "../compartido/Asistente.jsx";
 
@@ -447,6 +448,121 @@ const Calendario = ({ datos, onOpen, irACrear }) => {
 // ─── DETALLE DE UNA PIEZA ──────────────────────────────────────────────────────
 const TIPOS_SLIDE = { portada: "Portada", texto: "Texto", lista: "Lista", producto: "Producto", comparativa: "Comparativa", cta: "Cierre / CTA" };
 
+// ─── EDITOR DE SLIDES: textos + foto de cada imagen ──────────────────────────
+// Qué slides llevan foto de fondo/producto.
+const llevaFoto = (s, formato) => ["portada", "producto", "comparativa"].includes(s.tipo) || (s.tipo === "texto" && Boolean(s.producto_id)) || (s.tipo === "cta" && formato === "historias");
+
+async function achicarImagen(file, lado = 1600) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((ok, ko) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ko(new Error(`No se pudo leer ${file.name}`)); i.src = url; });
+    const k = Math.min(1, lado / Math.max(img.width, img.height));
+    const c = document.createElement("canvas");
+    c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL("image/jpeg", 0.85);
+  } finally { URL.revokeObjectURL(url); }
+}
+
+function ElegirFoto({ productoIds, nombres, actual, onElegir, onClose }) {
+  const [fotos, setFotos] = useState(null);
+  const [filtro, setFiltro] = useState(productoIds[0] || null);
+  const [subiendo, setSubiendo] = useState("");
+  const [error, setError] = useState("");
+  const cargar = useCallback(() => api(`/galeria?ids=${productoIds.join(",")}`).then(setFotos).catch(e => setError(e.message)), [productoIds.join(",")]); // eslint-disable-line
+  useEffect(() => { cargar(); }, [cargar]);
+  const subir = async (e) => {
+    const archivos = [...(e.target.files || [])]; e.target.value = "";
+    if (!filtro) return setError("Elegí primero de qué producto es la foto");
+    let ultima = null;
+    for (let i = 0; i < archivos.length; i++) {
+      setSubiendo(`Subiendo ${i + 1} de ${archivos.length}…`);
+      try { ultima = await api(`/galeria/${filtro}`, "POST", { imagen: await achicarImagen(archivos[i]) }); } catch (err) { setError(err.message); }
+    }
+    setSubiendo(""); await cargar();
+    if (ultima?.url && archivos.length === 1) onElegir(ultima.url);
+  };
+  const lista = (fotos || []).filter(f => !filtro || f.producto_id === filtro);
+  // Las fundas comparten fotos entre modelos: no mostrar la misma dos veces.
+  const vistas = new Set(); const unicas = lista.filter(f => !vistas.has(f.url) && vistas.add(f.url));
+  return createPortal(
+    <div style={{ fontFamily: "'Space Grotesk','Inter',system-ui,sans-serif", color: "#fff" }}>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 2600, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+        <div onClick={e => e.stopPropagation()} style={{ ...card, background: "#0b0f19", borderRadius: "16px", width: "100%", maxWidth: "640px", maxHeight: "88vh", overflowY: "auto", padding: "18px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+            <div style={{ fontWeight: 700, fontSize: "17px" }}>Elegí la foto</div>
+            <button onClick={onClose} style={{ background: "none", border: "none", color: "#9ca3af", fontSize: "24px", cursor: "pointer" }}>×</button>
+          </div>
+          {productoIds.length > 1 && <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "12px" }}>
+            {productoIds.map(id => <button key={id} onClick={() => setFiltro(id)} style={chipSt(filtro === id)}>{nombres[id] || `#${id}`}</button>)}
+          </div>}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: "8px" }}>
+            <label style={{ aspectRatio: "3/4", borderRadius: "10px", border: "1.5px dashed rgba(96,165,250,0.5)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "4px", color: "#60a5fa", fontSize: "12px", fontWeight: 600, cursor: subiendo ? "default" : "pointer", textAlign: "center", padding: "6px" }}>
+              <span style={{ fontSize: "22px" }}>+</span>{subiendo || "Subir foto"}
+              <input type="file" accept="image/*" multiple onChange={subir} disabled={Boolean(subiendo)} style={{ display: "none" }} />
+            </label>
+            {fotos === null && <div style={{ color: "#6b7280", fontSize: "13px", alignSelf: "center" }}>Cargando…</div>}
+            {unicas.map(f => (
+              <button key={f.id} onClick={() => onElegir(f.url)} style={{ position: "relative", aspectRatio: "3/4", padding: 0, borderRadius: "10px", overflow: "hidden", cursor: "pointer", background: "#111827", border: f.url === actual ? "3px solid #1EB6FF" : "1px solid rgba(255,255,255,0.1)" }}>
+                <img src={f.url} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                <span style={{ position: "absolute", left: 4, bottom: 4, fontSize: "10px", fontWeight: 700, background: "rgba(0,0,0,0.7)", color: "#d1d5db", padding: "1px 6px", borderRadius: "100px" }}>{f.usos ? `usada ${f.usos}×` : "nueva"}</span>
+              </button>
+            ))}
+          </div>
+          {fotos && !unicas.length && <div style={{ color: "#6b7280", fontSize: "13px", marginTop: "10px" }}>Este producto no tiene fotos en la galería todavía. Subí una con el botón +.</div>}
+          {error && <div style={{ color: "#fca5a5", fontSize: "13px", marginTop: "10px" }}>{error}</div>}
+        </div>
+      </div>
+    </div>, document.body);
+}
+
+function EditorSlides({ p, datos, ocupado, onCancelar, onRehacer }) {
+  const [ed, setEd] = useState(() => JSON.parse(JSON.stringify(p.guion.slides)).map(s => ({ foto: "", ...s })));
+  const [eligiendo, setEligiendo] = useState(null);
+  const set = (i, cambios) => setEd(x => x.map((s, k) => k === i ? { ...s, ...cambios } : s));
+  const nombres = Object.fromEntries((datos.productos || []).map(x => [x.id, x.nombre]));
+  const idsPieza = (p.producto_ids || []).map(Number);
+  const idsDe = (s) => { const ids = [s.producto_id, s.producto_id_b].filter(Boolean).map(Number); return ids.length ? ids : idsPieza; };
+  const altoMini = p.formato === "historias" ? 150 : 118;
+  return (
+    <div style={{ ...card, padding: "14px", background: "rgba(0,0,0,0.28)" }}>
+      <div style={{ ...sectionLabel, marginBottom: "4px" }}>Editar imágenes</div>
+      <div style={{ color: "#6b7280", fontSize: "12px", marginBottom: "8px" }}>Cambiá textos o fotos de cada slide y tocá <b>Rehacer imágenes</b>: se redibujan con el diseño de la marca.</div>
+      {ed.map((s, i) => (
+        <div key={i} style={{ display: "flex", gap: "12px", borderTop: i ? "1px solid rgba(255,255,255,0.07)" : "none", padding: "12px 0", flexWrap: "wrap" }}>
+          <div style={{ flexShrink: 0, width: altoMini * (p.formato === "historias" ? 9 / 16 : 4 / 5) }}>
+            {p.imagenes[i] && <img src={p.imagenes[i].imagen} alt="" style={{ width: "100%", borderRadius: "8px", display: "block" }} />}
+            {llevaFoto(s, p.formato) && (
+              <button onClick={() => setEligiendo(i)} style={{ marginTop: "6px", width: "100%", position: "relative", padding: 0, borderRadius: "8px", overflow: "hidden", cursor: "pointer", border: s.foto ? "2px solid #1EB6FF" : "1px dashed rgba(96,165,250,0.6)", background: "rgba(0,102,255,0.08)", color: "#60a5fa", fontSize: "11px", fontWeight: 700, fontFamily: "inherit" }}>
+                {s.foto ? <img src={s.foto} alt="" style={{ width: "100%", height: 54, objectFit: "cover", display: "block" }} /> : <div style={{ padding: "8px 4px" }}>📷 Cambiar foto</div>}
+                {s.foto && <span style={{ position: "absolute", inset: "auto 0 0 0", background: "rgba(0,0,0,0.65)", color: "#fff", padding: "2px" }}>📷 Cambiar</span>}
+              </button>
+            )}
+            {s.foto && <button onClick={() => set(i, { foto: "" })} style={{ marginTop: "4px", width: "100%", background: "none", border: "none", color: "#9ca3af", fontSize: "10px", cursor: "pointer", fontFamily: "inherit" }}>Volver a automática</button>}
+          </div>
+          <div style={{ flex: 1, minWidth: "200px" }}>
+            <div style={{ color: "#1EB6FF", fontSize: "12px", fontWeight: 700, marginBottom: "6px" }}>{i + 1} · {TIPOS_SLIDE[s.tipo] || s.tipo}{s.producto_id ? ` · ${nombres[s.producto_id] || ""}` : ""}</div>
+            <input value={s.kicker} onChange={e => set(i, { kicker: e.target.value })} placeholder="Rótulo chico" style={{ ...fieldSt, fontSize: "14px", marginBottom: "6px" }} />
+            <input value={(s.titular || []).join(" / ")} onChange={e => set(i, { titular: e.target.value.split("/").map(t => t.trim()).filter(Boolean) })} placeholder="Titular (separá líneas con /)" style={{ ...fieldSt, fontSize: "14px", marginBottom: "6px" }} />
+            {(s.titular || []).length > 1 && <div style={{ display: "flex", gap: "4px", marginBottom: "6px", flexWrap: "wrap", alignItems: "center" }}>
+              <span style={{ color: "#6b7280", fontSize: "11px" }}>Línea en celeste:</span>
+              {s.titular.map((_, k) => <button key={k} onClick={() => set(i, { destacada: k })} style={{ ...chipSt(s.destacada === k), padding: "3px 10px" }}>{k + 1}</button>)}
+            </div>}
+            {["portada", "texto", "producto", "cta"].includes(s.tipo) && <textarea value={s.cuerpo} onChange={e => set(i, { cuerpo: e.target.value })} rows={2} placeholder="Texto" style={{ ...fieldSt, fontSize: "14px", resize: "vertical" }} />}
+            {["lista", "comparativa"].includes(s.tipo) && <textarea value={(s.items || []).join("\n")} onChange={e => set(i, { items: e.target.value.split("\n") })} rows={4} placeholder="Un punto por línea" style={{ ...fieldSt, fontSize: "14px", resize: "vertical" }} />}
+            {s.tipo === "comparativa" && <textarea value={(s.items_b || []).join("\n")} onChange={e => set(i, { items_b: e.target.value.split("\n") })} rows={3} placeholder="Puntos del segundo producto" style={{ ...fieldSt, fontSize: "14px", resize: "vertical", marginTop: "6px" }} />}
+          </div>
+        </div>
+      ))}
+      <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end", flexWrap: "wrap" }}>
+        <Btn variant="ghost" onClick={onCancelar}>Cancelar</Btn>
+        <Btn onClick={() => onRehacer(ed.map(s => ({ ...s, items: (s.items || []).filter(Boolean), items_b: (s.items_b || []).filter(Boolean) })))} disabled={ocupado}>{ocupado ? "Rehaciendo…" : "Rehacer imágenes"}</Btn>
+      </div>
+      {eligiendo !== null && <ElegirFoto productoIds={idsDe(ed[eligiendo])} nombres={nombres} actual={ed[eligiendo].foto} onElegir={url => { set(eligiendo, { foto: url }); setEligiendo(null); }} onClose={() => setEligiendo(null)} />}
+    </div>
+  );
+}
+
 const Detalle = ({ id, datos, onClose, onCambio }) => {
   const [p, setP] = useState(null);
   const [error, setError] = useState("");
@@ -522,29 +638,9 @@ const Detalle = ({ id, datos, onClose, onCambio }) => {
       {p.formato === "historias" && <p style={{ color: "#6b7280", fontSize: "12px", margin: "0 0 14px" }}>Subilas en orden. En la última agregá el sticker <b>Enlace</b> con tu WhatsApp (wa.me/5493585178319).</p>}
 
       {!esMkp && p.guion?.slides && <div style={{ marginBottom: "14px" }}>
-        {!editar ? <button onClick={() => setEditar(JSON.parse(JSON.stringify(p.guion.slides)))} style={chipSt(false)}><Icon name="edit" size={12} /> Editar textos de las imágenes</button> : (
-          <div style={{ ...card, padding: "14px", background: "rgba(0,0,0,0.28)" }}>
-            <div style={{ ...sectionLabel, marginBottom: "10px" }}>Textos de cada slide</div>
-            {editar.map((s, i) => (
-              <div key={i} style={{ borderTop: i ? "1px solid rgba(255,255,255,0.07)" : "none", padding: "10px 0" }}>
-                <div style={{ color: "#1EB6FF", fontSize: "12px", fontWeight: 700, marginBottom: "6px" }}>{i + 1} · {TIPOS_SLIDE[s.tipo] || s.tipo}</div>
-                <input value={s.kicker} onChange={e => setEditar(ed => ed.map((x, k) => k === i ? { ...x, kicker: e.target.value } : x))} placeholder="Rótulo chico" style={{ ...fieldSt, fontSize: "14px", marginBottom: "6px" }} />
-                <input value={(s.titular || []).join(" / ")} onChange={e => setEditar(ed => ed.map((x, k) => k === i ? { ...x, titular: e.target.value.split("/").map(t => t.trim()).filter(Boolean) } : x))} placeholder="Titular (separá líneas con /)" style={{ ...fieldSt, fontSize: "14px", marginBottom: "6px" }} />
-                {(s.titular || []).length > 1 && <div style={{ display: "flex", gap: "4px", marginBottom: "6px", flexWrap: "wrap", alignItems: "center" }}>
-                  <span style={{ color: "#6b7280", fontSize: "11px" }}>Línea en celeste:</span>
-                  {s.titular.map((_, k) => <button key={k} onClick={() => setEditar(ed => ed.map((x, j) => j === i ? { ...x, destacada: k } : x))} style={{ ...chipSt(s.destacada === k), padding: "3px 10px" }}>{k + 1}</button>)}
-                </div>}
-                {["portada", "texto", "producto", "cta"].includes(s.tipo) && <textarea value={s.cuerpo} onChange={e => setEditar(ed => ed.map((x, k) => k === i ? { ...x, cuerpo: e.target.value } : x))} rows={2} placeholder="Texto" style={{ ...fieldSt, fontSize: "14px", resize: "vertical" }} />}
-                {["lista", "comparativa"].includes(s.tipo) && <textarea value={(s.items || []).join("\n")} onChange={e => setEditar(ed => ed.map((x, k) => k === i ? { ...x, items: e.target.value.split("\n") } : x))} rows={4} placeholder="Un punto por línea" style={{ ...fieldSt, fontSize: "14px", resize: "vertical" }} />}
-                {s.tipo === "comparativa" && <textarea value={(s.items_b || []).join("\n")} onChange={e => setEditar(ed => ed.map((x, k) => k === i ? { ...x, items_b: e.target.value.split("\n") } : x))} rows={3} placeholder="Puntos del segundo producto" style={{ ...fieldSt, fontSize: "14px", resize: "vertical", marginTop: "6px" }} />}
-              </div>
-            ))}
-            <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
-              <Btn variant="ghost" onClick={() => setEditar(null)}>Cancelar</Btn>
-              <Btn onClick={() => hacer("rehacer", async () => { await api(`/piezas/${p.id}/rehacer`, "POST", { slides: editar.map(s => ({ ...s, items: (s.items || []).filter(Boolean), items_b: (s.items_b || []).filter(Boolean) })) }); setEditar(null); })} disabled={ocupado === "rehacer"}>{ocupado === "rehacer" ? "Rehaciendo…" : "Rehacer imágenes"}</Btn>
-            </div>
-          </div>
-        )}
+        {!editar
+          ? <Btn variant="ghost" onClick={() => setEditar(true)} style={{ width: "100%", justifyContent: "center" }}><Icon name="edit" size={14} /> Editar imágenes (textos y fotos)</Btn>
+          : <EditorSlides p={p} datos={datos} ocupado={ocupado === "rehacer"} onCancelar={() => setEditar(null)} onRehacer={(slides) => hacer("rehacer", async () => { await api(`/piezas/${p.id}/rehacer`, "POST", { slides }); setEditar(null); })} />}
       </div>}
 
       <div style={{ ...card, padding: "14px", marginBottom: "14px", background: "rgba(0,0,0,0.28)" }}>

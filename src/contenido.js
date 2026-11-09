@@ -278,6 +278,24 @@ function router(chequearClave, explicarError = (e) => e.message) {
     res.json(data);
   });
 
+  // ── Galería de fotos para el editor de slides ──
+  // GET /galeria?ids=41,42 → fotos de esos productos (las más nuevas primero)
+  r.get('/galeria', async (req, res) => {
+    const ids = String(req.query.ids || '').split(',').map(Number).filter(Boolean).slice(0, 20);
+    if (!ids.length) return res.json([]);
+    const { data, error } = await supabase.from('producto_fotos').select('id, producto_id, url, usos').in('producto_id', ids).order('created_at', { ascending: false }).limit(400);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+  });
+  // POST /galeria/:producto_id { imagen: dataURL } → sube una foto nueva a la galería del producto
+  r.post('/galeria/:producto_id', async (req, res) => {
+    const img = String(req.body.imagen || '');
+    if (!/^data:image\/(png|jpeg|webp);base64,/.test(img)) return res.status(400).json({ error: 'Subí una imagen JPG, PNG o WEBP' });
+    try {
+      res.json(await require('./fotos').agregar({ producto_id: Number(req.params.producto_id), buffer: Buffer.from(img.split(',')[1], 'base64') }));
+    } catch (e) { fallar(res, e); }
+  });
+
   // Rehace las imágenes con los textos editados: { slides }
   r.post('/piezas/:id/rehacer', async (req, res) => {
     try {

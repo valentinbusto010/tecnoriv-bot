@@ -83,7 +83,7 @@
     <div class="error" id="errResponder"></div>
   </section>
   <details style="margin-top:16px;background:var(--tarjeta);border-radius:14px;padding:16px">
-    <summary style="cursor:pointer;font-weight:600">Activar número de WhatsApp del bot</summary>
+    <summary style="cursor:pointer;font-weight:600">WhatsApp del bot: número y plantillas</summary>
     <p style="color:var(--gris);font-size:14px">Usalo una sola vez, cuando el número figura como <b>Pendiente</b> en WhatsApp Manager. Antes poné su Phone number ID en <code>PHONE_NUMBER_ID</code> en Render.</p>
     <label for="waPin">PIN de 6 números (inventalo y guardalo: Meta lo pide si volvés a registrar el número)</label>
     <input id="waPin" inputmode="numeric" maxlength="6" placeholder="Ej: 482913">
@@ -92,6 +92,10 @@
     <button class="principal" id="btnActivarWa">Activar número</button>
     <div class="error" id="errActivarWa"></div>
     <div class="caja" id="resActivarWa" hidden></div>
+    <p style="color:var(--gris);font-size:14px;margin-top:20px"><b>Plantillas:</b> crea las 4 que usa el bot fuera de las 24 h (seguimiento, recompra, resumen y aviso) con el ID de la cuenta de arriba. Las que ya existen no se tocan. Meta las revisa: tocá de nuevo más tarde para ver si quedaron aprobadas.</p>
+    <button class="secundario" id="btnPlantillasWa" style="width:100%">Crear / revisar plantillas</button>
+    <div class="error" id="errPlantillasWa"></div>
+    <div class="caja" id="resPlantillasWa" hidden></div>
   </details>
 </main>
 
@@ -204,6 +208,31 @@
       $('errResponder').textContent = e.message;
     } finally {
       $('btnResponder').disabled = false;
+    }
+  });
+
+  try { $('waWaba').value = localStorage.getItem('wabaId') || ''; } catch (e) {}
+  $('waWaba').addEventListener('change', () => { try { localStorage.setItem('wabaId', $('waWaba').value); } catch (e) {} });
+
+  const ESTADO_PLANTILLA = { APPROVED: '✅ aprobada', PENDING: '⏳ en revisión', REJECTED: '❌ rechazada', PAUSED: '⏸️ pausada', DISABLED: '⛔ desactivada', ERROR: '⚠️ error' };
+  $('btnPlantillasWa').addEventListener('click', async () => {
+    $('errPlantillasWa').textContent = '';
+    $('resPlantillasWa').hidden = true;
+    $('btnPlantillasWa').disabled = true;
+    try {
+      const d = await pedir('/api/whatsapp/plantillas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wabaId: $('waWaba').value }),
+      });
+      $('resPlantillasWa').textContent = d.plantillas
+        .map((p) => `${p.nombre}: ${ESTADO_PLANTILLA[p.estado] || p.estado} (${p.accion})`)
+        .join('\n');
+      $('resPlantillasWa').hidden = false;
+    } catch (e) {
+      $('errPlantillasWa').textContent = e.message;
+    } finally {
+      $('btnPlantillasWa').disabled = false;
     }
   });
 

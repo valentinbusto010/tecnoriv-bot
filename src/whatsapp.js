@@ -62,4 +62,31 @@ async function activarNumero({ pin, wabaId }) {
   return { pasos, numero: data };
 }
 
-module.exports = { enviarTexto, enviarImagen, enviarPlantilla, explicarErrorWA, destino, activarNumero, limpiarParam };
+// Crea en la cuenta de WhatsApp las plantillas que faltan (src/plantillas.js) y devuelve el estado de cada una.
+// Las que ya existen no se tocan. Meta las revisa: quedan PENDING hasta que las aprueba.
+async function crearPlantillas(wabaId) {
+  const base = `https://graph.facebook.com/v21.0/${wabaId}/message_templates`;
+  const idioma = process.env.WA_IDIOMA_PLANTILLAS || 'es_AR';
+  const { data } = await axios.get(base, { headers: headers(), params: { fields: 'name,status,language', limit: 200 }, timeout: 20000 });
+  const existentes = (data.data || []).filter((t) => t.language === idioma);
+  const resultado = [];
+  for (const p of require('./plantillas')) {
+    const ya = existentes.find((t) => t.name === p.name);
+    if (ya) { resultado.push({ nombre: p.name, estado: ya.status, accion: 'ya existía' }); continue; }
+    try {
+      const { data: r } = await axios.post(base, {
+        name: p.name,
+        language: idioma,
+        category: p.category,
+        components: [{ type: 'BODY', text: p.text, example: { body_text: [p.example] } }],
+      }, { headers: headers(), timeout: 20000 });
+      resultado.push({ nombre: p.name, estado: r.status || 'PENDING', accion: 'creada' });
+    } catch (e) {
+      const err = e.response?.data?.error || {};
+      resultado.push({ nombre: p.name, estado: 'ERROR', accion: err.error_user_msg || err.message || e.message });
+    }
+  }
+  return resultado;
+}
+
+module.exports = { enviarTexto, enviarImagen, enviarPlantilla, explicarErrorWA, destino, activarNumero, limpiarParam, crearPlantillas };

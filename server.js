@@ -45,11 +45,10 @@ async function descargarMedia(mediaId) {
 const AVISO_AUDIO = 'Por ahora no puedo escuchar audios 🙏 ¿Me lo escribís? Así te respondo al toque.';
 const AVISO_OTRO = 'Por ahora solo puedo leer mensajes de texto y fotos. ¿Me escribís tu consulta? 🙌';
 
+// Texto libre si el dueño escribió en las últimas 23 h; si no, plantilla tr_aviso (ver src/postventa.js).
 async function avisarDueno(texto) {
-  if (!OWNER_PHONE) return;
-  await enviarWhatsApp(OWNER_PHONE, texto).catch((e) =>
-    console.error('No se pudo avisar al dueño:', e.response?.data?.error?.message || e.message)
-  );
+  const r = await postventa.avisarDueno(texto).catch((e) => ({ ok: false, error: e.message }));
+  if (!r.ok) console.error('No se pudo avisar al dueño:', r.error);
 }
 
 app.post('/webhook', async (req, res) => {
@@ -123,13 +122,16 @@ app.post('/webhook', async (req, res) => {
     const extra = await postventa.contextoCliente(from).catch(() => '');
     const { texto, ventas, humano, fotos } = await responderCliente([...historial, { role: 'user', content: text }], imagen, extra);
 
+    const enviadas = [];
     for (const foto of fotos) {
-      await enviarImagen(from, foto.url, foto.nombre).catch((e) =>
-        console.error('No se pudo mandar la foto:', e.response?.data?.error?.message || e.message)
+      await enviarImagen(from, foto.url, foto.nombre).then(
+        () => enviadas.push(foto.nombre),
+        (e) => console.error('No se pudo mandar la foto:', e.response?.data?.error?.message || e.message)
       );
     }
     await enviarWhatsApp(from, texto);
-    await guardarMensaje(from, 'assistant', texto);
+    // Nota interna en el historial (el cliente no la ve) para que el bot no repita las fotos.
+    await guardarMensaje(from, 'assistant', texto + (enviadas.length ? `\n[Fotos ya enviadas: ${enviadas.join(', ')}]` : ''));
     console.log(`Respuesta enviada a ${from}`);
 
     if (ventas.length) {

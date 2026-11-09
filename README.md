@@ -77,15 +77,16 @@ Botón **✨ Asistente IA** abajo a la derecha. Ve en vivo tu stock, ventas (120
 - **Resumen diario** a tu WhatsApp a las 8: ventas de ayer y del mes, pendientes, stock bajo, contenido del día y un consejo de la IA. Respondé **hoy** para verlo completo cuando llega por plantilla.
 - Días, % de descuento y hora se cambian desde el panel. Solo escribe a clientes de lunes a sábado de 10 a 20 h. Los pedidos que ya estaban entregados antes de activar esto no reciben mensajes.
 
-**Plantillas (obligatorias, una sola vez):** WhatsApp solo deja mandar texto libre a quien te escribió en las últimas 24 h. Para el resto hay que crear 3 plantillas en **business.facebook.com → WhatsApp Manager → Plantillas de mensajes → Crear plantilla**, idioma **Español (ARG)**, con estos nombres y textos exactos:
+**Plantillas (obligatorias, una sola vez):** WhatsApp solo deja mandar texto libre a quien te escribió en las últimas 24 h. Para el resto hay que crear 4 plantillas en **business.facebook.com → WhatsApp Manager → Plantillas de mensajes → Crear plantilla**, idioma **Español (ARG)**, con estos nombres y textos exactos:
 
 | Nombre | Categoría | Texto |
 |---|---|---|
 | `tr_seguimiento` | Utilidad | `Hola {{1}}! Te escribimos de Tecno Riv 👋 ¿Cómo te está funcionando tu {{2}}? Si tenés alguna duda o algo no anda bien, respondé este mensaje y te ayudamos.` |
 | `tr_recompra` | Marketing | `Hola {{1}}! Como compraste {{2}} en Tecno Riv, te guardamos un beneficio: {{3}}, {{4}}% OFF hasta el {{5}}. ¿Te lo reservamos? Respondé este mensaje. Si no querés recibir más ofertas, respondé BAJA.` |
 | `tr_resumen` | Utilidad | `Buen día! Tu resumen de Tecno Riv: {{1}}. Respondé HOY para ver el detalle completo.` |
+| `tr_aviso` | Utilidad | `🔔 Aviso de Tecno Riv: {{1}}` |
 
-Ejemplos para la revisión de Meta: {{1}} Juan · {{2}} Smartwatch D20 · {{3}} Malla para smartwatch a $3.149 (antes $3.499) · {{4}} 10 · {{5}} 12/11. Para el resumen: ayer $45.000 (2 pedidos) · mes $380.000 · 1 pendientes · 3 productos con stock bajo. Si usás otro idioma, cargá `WA_IDIOMA_PLANTILLAS` en Render (ej. `es`). Correr también `supabase-postventa.sql`.
+Ejemplos para la revisión de Meta: {{1}} Juan · {{2}} Smartwatch D20 · {{3}} Malla para smartwatch a $3.149 (antes $3.499) · {{4}} 10 · {{5}} 12/11. Para el resumen: ayer $45.000 (2 pedidos) · mes $380.000 · 1 pendientes · 3 productos con stock bajo. Para el aviso: 🛒 NUEVA VENTA #12 · Cliente: +5493584123456 · Smartwatch D20 · $12.000 (los avisos de ventas y de clientes que necesitan atención llegan por esta plantilla si no le escribiste al bot en las últimas 24 h). Si usás otro idioma, cargá `WA_IDIOMA_PLANTILLAS` en Render (ej. `es`). Correr también `supabase-postventa.sql`.
 
 **Instalarla como app:** abrí `/gestion` y tocá **Instalar app** arriba a la derecha (Chrome en PC y Android). En iPhone: Safari → Compartir → Agregar a inicio.
 

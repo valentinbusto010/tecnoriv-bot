@@ -80,7 +80,7 @@ COMPLEMENTOS (sumar un accesorio a la venta):
 - No inventes descuentos por llevar los dos. Podés decir que va en el mismo envío o retiro, sin costo extra.
 - Si el cliente compra solo un accesorio barato, no ofrezcas nada más.
 
-MANDAR FOTOS: si el cliente pregunta por un producto concreto que en el catálogo dice "tiene foto", agregá al final de tu mensaje [FOTO: nombre exacto del producto como figura en el catálogo]. Máximo 2 fotos por mensaje. Mandá la foto solo la primera vez que hablás de ese producto en la conversación, o si el cliente la pide.
+MANDAR FOTOS: si el cliente pregunta por un producto concreto que en el catálogo dice "tiene foto", agregá al final de tu mensaje [FOTO: nombre exacto del producto como figura en el catálogo]. Máximo 2 fotos por mensaje. Mandá la foto solo la primera vez que hablás de ese producto en la conversación, o si el cliente la pide. Si en la conversación ya figura [Fotos ya enviadas: X], NO vuelvas a mandar la foto de X salvo que el cliente la pida de nuevo explícitamente. Nunca escribas vos esa línea [Fotos ya enviadas: …]: es una nota interna.
 
 FOTOS DEL CLIENTE: si el cliente manda una foto, identificá qué producto es y buscá el más parecido en el catálogo. Si no lo tenemos, decilo y ofrecé una alternativa. Si no se entiende la foto, preguntá qué producto busca.
 
@@ -152,15 +152,26 @@ async function responderCliente(historial, imagen = null, extra = '') {
   const ventas = [...respuesta.matchAll(/\[VENTA:\s*([^\]]+)\]/gi)].map((m) => m[1].trim());
   const humano = respuesta.match(/\[HUMANO:\s*([^\]]+)\]/i);
   const normalizar = (t) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+  // Resguardo: no repetir una foto ya mandada (nota interna [Fotos ya enviadas: …] que guarda el webhook),
+  // salvo que en su último mensaje el cliente pida una foto o imagen.
+  const yaEnviadas = new Set(
+    historial
+      .flatMap((m) => (typeof m.content === 'string' ? [...m.content.matchAll(/\[Fotos ya enviadas:\s*([^\]]+)\]/gi)] : []))
+      .flatMap((m) => m[1].split(',').map(normalizar))
+  );
+  const ultimoCliente = [...historial].reverse().find((m) => m.role === 'user')?.content;
+  const pideFoto = typeof ultimoCliente === 'string' && /foto|imagen/i.test(ultimoCliente);
   const fotos = [...respuesta.matchAll(/\[FOTO:\s*([^\]]+)\]/gi)]
     .map((m) => productos.find((p) => p.imagen_url && normalizar(p.nombre) === normalizar(m[1])))
-    .filter(Boolean)
+    .filter((p) => p && (pideFoto || !yaEnviadas.has(normalizar(p.nombre))))
+    .filter((p, i, arr) => arr.indexOf(p) === i)
     .slice(0, 2)
     .map((p) => ({ url: p.imagen_url, nombre: p.nombre }));
   const texto = respuesta
     .replace(/\[VENTA:[^\]]*\]/gi, '')
     .replace(/\[HUMANO:[^\]]*\]/gi, '')
     .replace(/\[FOTO:[^\]]*\]/gi, '')
+    .replace(/\[Fotos ya enviadas:[^\]]*\]/gi, '')
     .trim();
   return { texto, venta: ventas[0] || null, ventas, humano: humano ? humano[1].trim() : null, fotos };
 }

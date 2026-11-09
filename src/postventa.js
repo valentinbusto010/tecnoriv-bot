@@ -2,7 +2,8 @@
 // 1) Seguimiento: X días después de entregado, "¿cómo te está funcionando?" (y el bot pide reseña si está todo bien).
 // 2) Recompra: Y días después, una oferta de un accesorio que combine con lo que compró, con % OFF por 7 días.
 // 3) Resumen diario al dueño a la mañana: ventas, pendientes, stock, contenido del día y un consejo de la IA.
-// Fuera de la ventana de 24 h de WhatsApp se usan las plantillas tr_seguimiento, tr_recompra y tr_resumen (ver README).
+// 4) Avisos al dueño: venta cerrada o cliente que necesita atención.
+// Fuera de la ventana de 24 h de WhatsApp se usan las plantillas tr_seguimiento, tr_recompra, tr_resumen y tr_aviso (ver README).
 const express = require('express');
 const { supabase } = require('./datos');
 const negocio = require('./negocio');
@@ -18,7 +19,7 @@ const haceDias = (n) => new Date(Date.now() - n * 864e5).toISOString();
 const fmt = (n) => '$' + Math.round(Number(n) || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 const fechaCorta = (dia) => { const [, m, d] = dia.split('-'); return `${Number(d)}/${Number(m)}`; };
 
-const PLANTILLAS = { seguimiento: 'tr_seguimiento', recompra: 'tr_recompra', resumen: 'tr_resumen' };
+const PLANTILLAS = { seguimiento: 'tr_seguimiento', recompra: 'tr_recompra', resumen: 'tr_resumen', aviso: 'tr_aviso' };
 const DEFECTO = { postventa_activa: 1, dias_seguimiento: 3, dias_recompra: 35, recompra_descuento: 10, resumen_activo: 1, resumen_hora: 8 };
 // Claves internas en "ajustes" (no se muestran como ajustes en /gestion)
 const INTERNAS = ['resumen_ultimo', 'resumen_texto', 'dueno_ultimo'];
@@ -65,7 +66,8 @@ async function mandar({ tipo, tel, cliente, pedido_id, texto, params, ventana })
   try {
     const wa_id = abierta ? await wa.enviarTexto(tel, texto) : await wa.enviarPlantilla(tel, PLANTILLAS[tipo], params);
     await registrar({ tipo, telefono: tel, cliente, pedido_id, texto, via, estado: 'enviado', wa_id });
-    if (tipo !== 'resumen') await supabase.from('mensajes').insert({ telefono: tel, rol: 'assistant', contenido: texto });
+    // Lo que le llega al dueño (resumen, avisos) no va al historial de chat del bot.
+    if (tipo !== 'resumen' && tipo !== 'aviso') await supabase.from('mensajes').insert({ telefono: tel, rol: 'assistant', contenido: texto });
     return { ok: true, via };
   } catch (e) {
     const error = wa.explicarErrorWA(e);
@@ -272,6 +274,17 @@ async function enviarResumen() {
   return { ...r, texto };
 }
 
+// Avisos al dueño (venta cerrada, cliente que necesita atención). Fuera de su ventana de 24 h el texto libre
+// no se entrega (error 131047), así que va por la plantilla tr_aviso con el aviso en una línea.
+async function avisarDueno(texto) {
+  if (!process.env.OWNER_PHONE) return { ok: false, error: 'Falta OWNER_PHONE en Render' };
+  const tel = telInternacional(process.env.OWNER_PHONE);
+  if (!supabase) return wa.enviarTexto(tel, texto).then(() => ({ ok: true, via: 'texto' }), (e) => ({ ok: false, error: wa.explicarErrorWA(e) }));
+  const cfg = await leerConfig().catch(() => ({}));
+  const abierta = cfg.dueno_ultimo && Date.now() - new Date(cfg.dueno_ultimo).getTime() < 23 * 3600e3;
+  return mandar({ tipo: 'aviso', tel, cliente: 'Dueño', texto, params: [wa.limpiarParam(texto)], ventana: Boolean(abierta) });
+}
+
 // Lo llama el webhook cuando escribe el dueño (abre su ventana de 24 h).
 const duenoEscribio = () => guardarInterna('dueno_ultimo', new Date().toISOString()).then(() => {}, () => {});
 
@@ -387,6 +400,6 @@ function router(chequearClave, explicarError = (e) => e.message) {
 }
 
 module.exports = {
-  iniciar, router, tick, procesarBaja, registrarEstado, contextoCliente, beneficioDe, duenoEscribio, ultimoResumen,
+  iniciar, router, tick, procesarBaja, registrarEstado, contextoCliente, beneficioDe, duenoEscribio, ultimoResumen, avisarDueno,
   armarResumen, elegirComplemento, telInternacional, correrSeguimientos, correrRecompras, INTERNAS,
 };

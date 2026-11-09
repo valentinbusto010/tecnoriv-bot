@@ -62,4 +62,4 @@ async function activarNumero({ pin, wabaId }) {
   return { pasos, numero: data };
 }
 
-module.exports = { enviarTexto, enviarImagen, enviarPlantilla, explicarErrorWA, destino, activarNumero };
+module.exports = { enviarTexto, enviarImagen, enviarPlantilla, explicarErrorWA, destino, activarNumero, limpiarParam };

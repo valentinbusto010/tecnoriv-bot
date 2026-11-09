@@ -71,6 +71,9 @@ Botón **✨ Asistente IA** abajo a la derecha. Ve en vivo tu stock, ventas (120
 - **Pedile cambios:** cargar venta o gasto, sumar/restar stock, cambiar precio/costo, pausar o crear productos, configurar la promo, crear o programar contenido. Te muestra una tarjeta y **no cambia nada hasta que tocás Confirmar**.
 - Se puede dictar con el micrófono. Usa la misma `CLAUDE_API_KEY` (cada mensaje cuesta unos centavos de dólar).
 
+### Perfil de WhatsApp del bot (en /gestion → Clientes)
+Foto, info, descripción, dirección, email, web y rubro que ve el cliente al tocar el nombre del chat, con vista previa. **Poner logo TECNO riv** sube el logo como foto (640×640) y **Usar textos sugeridos** arma la descripción con los datos de `src/negocio.js`. Usa `WHATSAPP_TOKEN` y `PHONE_NUMBER_ID`; para la foto busca solo el ID de la app (si falla, cargá `META_APP_ID` en Render). El nombre visible se cambia en WhatsApp Manager (lo revisa Meta).
+
 ### Postventa y resumen diario por WhatsApp (en /gestion → Clientes → Automatizaciones)
 - **Seguimiento:** a los 3 días de marcar un pedido como **entregado**, el bot le escribe "¿Cómo te está funcionando tu…?". Si está conforme, le pide que te etiquete en Instagram; si tiene un problema, te lo deriva.
 - **Oferta de recompra:** a los 35 días le ofrece un accesorio que combina con lo que compró (malla/hidrogel para smartwatch, MagSafe para quien compró funda, etc.) con 10% OFF por 7 días. Si lo compra por el bot, el descuento se aplica solo. Quien responde **BAJA** no recibe más ofertas.

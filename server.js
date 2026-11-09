@@ -264,6 +264,70 @@ app.post('/api/whatsapp/activar', chequearClave, async (req, res) => {
   }
 });
 
+// ── Perfil de WhatsApp del bot (foto, info, descripción, dirección, web) ──
+function perfilSugerido(req) {
+  const negocio = require('./src/negocio');
+  const base = (process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || `https://${req.get('host')}`).replace(/\/$/, '');
+  const ig = 'https://www.instagram.com/' + negocio.instagram.replace('@', '');
+  const desc = [
+    `Tienda de tecnología en ${negocio.ciudad}: smartwatches, auriculares inalámbricos, AirPods, cargadores y accesorios para Android y iPhone.`,
+    `✅ ${negocio.garantia}`,
+    '🚚 Envío gratis dentro de Río Cuarto o retiro a coordinar',
+    negocio.descuentoEfectivo ? `💵 ${negocio.descuentoEfectivo}% OFF pagando en efectivo` : '',
+    '💳 Efectivo, transferencia, Mercado Pago y tarjetas',
+    `🕘 ${negocio.horario}`,
+    'Catálogo con precios actualizados en nuestra web 👇',
+  ].filter(Boolean).join('\n');
+  return {
+    about: 'Tecnología con garantía en Río Cuarto ⚡ Escribinos y te respondemos al toque',
+    description: desc,
+    address: `${negocio.ciudad} · Envío gratis en la ciudad`,
+    email: '',
+    websites: [negocio.web || `${base}/catalogo`, ig],
+    vertical: 'RETAIL',
+  };
+}
+
+app.get('/api/whatsapp/perfil', chequearClave, async (req, res) => {
+  const sugerido = perfilSugerido(req);
+  if (!process.env.PHONE_NUMBER_ID || !process.env.WHATSAPP_TOKEN) return res.json({ conectado: false, sugerido, limites: wa.LIMITES, rubros: wa.RUBROS, error: 'Faltan WHATSAPP_TOKEN o PHONE_NUMBER_ID en Render.' });
+  try {
+    res.json({ conectado: true, ...(await wa.leerPerfil()), sugerido, limites: wa.LIMITES, rubros: wa.RUBROS });
+  } catch (error) {
+    console.error('Perfil WhatsApp:', error.response?.data || error.message);
+    res.json({ conectado: false, sugerido, limites: wa.LIMITES, rubros: wa.RUBROS, error: wa.explicarErrorWA(error) });
+  }
+});
+
+app.put('/api/whatsapp/perfil', chequearClave, async (req, res) => {
+  try {
+    res.json(await wa.guardarPerfil(req.body || {}));
+  } catch (error) {
+    console.error('Guardar perfil WhatsApp:', error.response?.data || error.message);
+    res.status(500).json({ error: wa.explicarErrorWA(error) });
+  }
+});
+
+// Foto: la que mandes (dataURL) o, si no mandás ninguna, el logo TECNO riv. Se deja en 640x640 JPG.
+app.post('/api/whatsapp/perfil/foto', chequearClave, async (req, res) => {
+  try {
+    const sharp = require('sharp');
+    const img = String(req.body?.imagen || '');
+    let origen;
+    if (img) {
+      if (!/^data:image\/(png|jpeg|webp);base64,/.test(img)) return res.status(400).json({ error: 'Subí una imagen PNG, JPG o WEBP' });
+      origen = Buffer.from(img.split(',')[1], 'base64');
+    } else {
+      origen = path.join(__dirname, 'public', 'app', 'icono-maskable-512.png');
+    }
+    const jpeg = await sharp(origen).resize(640, 640, { fit: 'cover' }).flatten({ background: '#05070d' }).jpeg({ quality: 90 }).toBuffer();
+    res.json(await wa.subirFotoPerfil(jpeg));
+  } catch (error) {
+    console.error('Foto perfil WhatsApp:', error.response?.data || error.message);
+    res.status(500).json({ error: wa.explicarErrorWA(error) });
+  }
+});
+
 // Crea imagen + título + descripción para publicar en Marketplace
 app.post('/api/publicacion', chequearClave, subida.single('foto'), async (req, res) => {
   try {

@@ -89,4 +89,56 @@ async function crearPlantillas(wabaId) {
   return resultado;
 }
 
-module.exports = { enviarTexto, enviarImagen, enviarPlantilla, explicarErrorWA, destino, activarNumero, limpiarParam, crearPlantillas };
+// ───────── PERFIL DEL NEGOCIO (lo que ve el cliente al tocar el nombre del chat) ─────────
+const GRAPH = 'https://graph.facebook.com/v21.0';
+const CAMPOS_PERFIL = 'about,address,description,email,profile_picture_url,websites,vertical';
+// Límites de Meta
+const LIMITES = { about: 139, description: 512, address: 256, email: 128 };
+const RUBROS = ['RETAIL', 'OTHER', 'PROF_SERVICES', 'ENTERTAIN', 'EDU', 'APPAREL', 'BEAUTY', 'AUTO'];
+
+async function leerPerfil() {
+  const id = process.env.PHONE_NUMBER_ID;
+  const [{ data: p }, { data: n }] = await Promise.all([
+    axios.get(`${GRAPH}/${id}/whatsapp_business_profile`, { headers: headers(), params: { fields: CAMPOS_PERFIL }, timeout: 20000 }),
+    axios.get(`${GRAPH}/${id}`, { headers: headers(), params: { fields: 'display_phone_number,verified_name,name_status,quality_rating' }, timeout: 20000 }),
+  ]);
+  return { perfil: p.data?.[0] || {}, numero: n };
+}
+
+async function guardarPerfil(c) {
+  const body = { messaging_product: 'whatsapp' };
+  for (const k of Object.keys(LIMITES)) if (k in c) body[k] = String(c[k] ?? '').trim().slice(0, LIMITES[k]);
+  if (body.about === '') delete body.about; // "Info" no puede quedar vacía
+  if ('websites' in c) {
+    body.websites = (c.websites || []).map((w) => String(w).trim()).filter(Boolean).slice(0, 2)
+      .map((w) => (/^https?:\/\//i.test(w) ? w : 'https://' + w));
+  }
+  if (c.vertical && RUBROS.includes(c.vertical)) body.vertical = c.vertical;
+  await axios.post(`${GRAPH}/${process.env.PHONE_NUMBER_ID}/whatsapp_business_profile`, body, { headers: headers(), timeout: 20000 });
+  return leerPerfil();
+}
+
+// Foto de perfil: se sube con la API de cargas de la app (Resumable Upload) y se asigna el "handle".
+async function subirFotoPerfil(jpeg) {
+  let appId = process.env.META_APP_ID;
+  if (!appId) {
+    const { data } = await axios.get(`${GRAPH}/app`, { headers: headers(), timeout: 20000 }).catch(() => ({ data: {} }));
+    appId = data.id;
+  }
+  if (!appId) throw new Error('No pude averiguar el ID de la app de Meta. Cargá META_APP_ID en Render (developers.facebook.com → tu app → Configuración → Básica).');
+  const { data: ses } = await axios.post(`${GRAPH}/${appId}/uploads`, null, {
+    headers: headers(), params: { file_name: 'perfil-tecnoriv.jpg', file_length: jpeg.length, file_type: 'image/jpeg' }, timeout: 20000,
+  });
+  const { data: sub } = await axios.post(`${GRAPH}/${ses.id}`, jpeg, {
+    headers: { Authorization: `OAuth ${process.env.WHATSAPP_TOKEN}`, file_offset: '0', 'Content-Type': 'application/octet-stream' },
+    maxBodyLength: Infinity, timeout: 60000,
+  });
+  if (!sub.h) throw new Error('Meta no devolvió el código de la imagen subida');
+  await axios.post(`${GRAPH}/${process.env.PHONE_NUMBER_ID}/whatsapp_business_profile`, { messaging_product: 'whatsapp', profile_picture_handle: sub.h }, { headers: headers(), timeout: 20000 });
+  return leerPerfil();
+}
+
+module.exports = {
+  enviarTexto, enviarImagen, enviarPlantilla, explicarErrorWA, destino, activarNumero, limpiarParam, crearPlantillas,
+  leerPerfil, guardarPerfil, subirFotoPerfil, LIMITES, RUBROS,
+};

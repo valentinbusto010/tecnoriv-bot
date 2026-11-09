@@ -916,6 +916,121 @@ const Finanzas = ({ pedidos, gastos, accion }) => {
 };
 
 // ─── CLIENTES ──────────────────────────────────────────────────────────────────
+// ─── PERFIL DE WHATSAPP DEL BOT (foto, info, descripción, dirección, web) ─────
+async function apiWa(ruta, metodo = "GET", body) {
+  const r = await fetch("/api/whatsapp" + ruta, { method: metodo, headers: { "Content-Type": "application/json", "x-panel-key": getClave() }, body: body ? JSON.stringify(body) : undefined });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || `Error ${r.status}`);
+  return data;
+}
+const RUBRO_TXT = { RETAIL: "Tienda", OTHER: "Otro", PROF_SERVICES: "Servicios profesionales", ENTERTAIN: "Entretenimiento", EDU: "Educación", APPAREL: "Ropa", BEAUTY: "Belleza", AUTO: "Autos" };
+const leerArchivo = (f) => new Promise((ok, ko) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = ko; r.readAsDataURL(f); });
+
+function PerfilWhatsApp() {
+  const [d, setD] = useState(null);
+  const [form, setForm] = useState(null);
+  const [abierto, setAbierto] = useState(false);
+  const [ocupado, setOcupado] = useState("");
+  const [msg, setMsg] = useState({ ok: "", error: "" });
+
+  const aForm = (p) => ({ about: p.about || "", description: p.description || "", address: p.address || "", email: p.email || "", web1: p.websites?.[0] || "", web2: p.websites?.[1] || "", vertical: p.vertical && p.vertical !== "UNDEFINED" ? p.vertical : "RETAIL" });
+  const cargar = useCallback(async () => {
+    try {
+      const r = await apiWa("/perfil"); setD(r);
+      const vacio = !r.perfil?.about && !r.perfil?.description;
+      setForm(aForm(r.conectado && !vacio ? r.perfil : r.sugerido));
+      if (vacio) setAbierto(true);
+    } catch (e) { setMsg({ ok: "", error: e.message }); }
+  }, []);
+  useEffect(() => { cargar(); }, [cargar]);
+
+  if (!d || !form) return msg.error ? <div style={{ ...card, padding: "16px", marginBottom: "20px", color: "#fca5a5", fontSize: "13px" }}>Perfil de WhatsApp: {msg.error}</div> : null;
+  const L = d.limites || { about: 139, description: 512, address: 256, email: 128 };
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const hacer = async (clave, fn, ok) => { setOcupado(clave); setMsg({ ok: "", error: "" }); try { const r = await fn(); if (r?.perfil) setD(x => ({ ...x, ...r })); setMsg({ ok, error: "" }); } catch (e) { setMsg({ ok: "", error: e.message }); } finally { setOcupado(""); } };
+  const guardar = () => hacer("guardar", () => apiWa("/perfil", "PUT", { about: form.about, description: form.description, address: form.address, email: form.email, websites: [form.web1, form.web2], vertical: form.vertical }), "Perfil actualizado en WhatsApp ✓ (en el celu del cliente puede tardar unos minutos)");
+  const fotoLogo = () => hacer("foto", () => apiWa("/perfil/foto", "POST", {}), "Foto actualizada con el logo TECNO riv ✓");
+  const fotoPropia = async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (!f) return; if (f.size > 1.4 * 1024 * 1024) return setMsg({ ok: "", error: "La imagen es muy pesada (máx ~1,4 MB)" }); const imagen = await leerArchivo(f); hacer("foto", () => apiWa("/perfil/foto", "POST", { imagen }), "Foto actualizada ✓"); };
+
+  const p = d.perfil || {};
+  const nombre = d.numero?.verified_name || "Tecno Riv";
+  const tel = d.numero?.display_phone_number || "";
+  const foto = p.profile_picture_url;
+  const webs = [form.web1, form.web2].filter(Boolean);
+  const contador = (k) => <span style={{ float: "right", color: form[k].length > L[k] ? "#ef4444" : "#6b7280", fontWeight: 500, textTransform: "none", letterSpacing: 0 }}>{form[k].length}/{L[k]}</span>;
+  const fila = { display: "flex", gap: "12px", padding: "12px 16px", borderTop: "1px solid #1f2c34", alignItems: "flex-start" };
+
+  return (
+    <div style={{ ...card, padding: "18px", marginBottom: "20px" }}>
+      <div onClick={() => setAbierto(a => !a)} style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer" }}>
+        <div style={{ width: 44, height: 44, borderRadius: "50%", overflow: "hidden", flexShrink: 0, background: "#0b141a", border: "1px solid rgba(255,255,255,0.1)" }}>
+          {foto ? <img src={foto} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <img src="/app/icono-maskable-512.png" alt="" style={{ width: "100%", height: "100%", opacity: 0.45 }} />}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ color: "#fff", fontWeight: 700, fontSize: "16px" }}>Perfil de WhatsApp del bot</div>
+          <div style={{ color: d.conectado ? "#6b7280" : "#f59e0b", fontSize: "12px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d.conectado ? `${nombre}${tel ? " · " + tel : ""}${!foto ? " · sin foto" : ""}${!p.description ? " · sin descripción" : ""}` : d.error}</div>
+        </div>
+        <span style={{ color: "#6b7280", fontSize: "18px", transform: abierto ? "rotate(180deg)" : "none", transition: "transform .2s" }}>⌄</span>
+      </div>
+
+      {abierto && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "18px", marginTop: "16px" }}>
+          {/* Vista previa: así lo ve el cliente al tocar el nombre del chat */}
+          <div>
+            <div style={{ ...sectionLabel, marginBottom: "8px" }}>Así lo ve el cliente</div>
+            <div style={{ background: "#0b141a", borderRadius: "16px", overflow: "hidden", border: "1px solid rgba(255,255,255,0.08)", color: "#e9edef", fontFamily: "system-ui, -apple-system, sans-serif" }}>
+              <div style={{ textAlign: "center", padding: "22px 16px 16px" }}>
+                <div style={{ width: 104, height: 104, borderRadius: "50%", overflow: "hidden", margin: "0 auto 12px", background: "#202c33" }}>
+                  <img src={foto || "/app/icono-maskable-512.png"} alt="Foto de perfil" style={{ width: "100%", height: "100%", objectFit: "cover", opacity: foto ? 1 : 0.5 }} />
+                </div>
+                <div style={{ fontSize: "20px", fontWeight: 500 }}>{nombre}</div>
+                {tel && <div style={{ color: "#8696a0", fontSize: "14px", marginTop: "2px" }}>{tel}</div>}
+                <div style={{ color: "#8696a0", fontSize: "12px", marginTop: "6px" }}>Cuenta de empresa · {RUBRO_TXT[form.vertical] || "Tienda"}</div>
+              </div>
+              {form.about && <div style={fila}><span style={{ color: "#8696a0" }}>ⓘ</span><span style={{ fontSize: "14px" }}>{form.about}</span></div>}
+              {form.description && <div style={{ ...fila, whiteSpace: "pre-wrap", fontSize: "14px", lineHeight: 1.45 }}><span style={{ color: "#8696a0" }}>🏪</span><span>{form.description}</span></div>}
+              {form.address && <div style={fila}><span style={{ color: "#8696a0" }}>📍</span><span style={{ fontSize: "14px" }}>{form.address}</span></div>}
+              {form.email && <div style={fila}><span style={{ color: "#8696a0" }}>✉️</span><span style={{ fontSize: "14px", color: "#53bdeb" }}>{form.email}</span></div>}
+              {webs.map(w => <div key={w} style={fila}><span style={{ color: "#8696a0" }}>🔗</span><span style={{ fontSize: "14px", color: "#53bdeb", wordBreak: "break-all" }}>{w.replace(/^https?:\/\/(www\.)?/, "")}</span></div>)}
+            </div>
+            <div style={{ display: "flex", gap: "8px", marginTop: "10px", flexWrap: "wrap" }}>
+              <Btn onClick={fotoLogo} disabled={Boolean(ocupado) || !d.conectado} style={{ padding: "8px 12px", fontSize: "13px" }}>{ocupado === "foto" ? "Subiendo…" : "Poner logo TECNO riv"}</Btn>
+              <label style={{ ...btnFondo("ghost"), border: "1px solid rgba(255,255,255,0.08)", borderRadius: "10px", padding: "8px 12px", fontSize: "13px", fontWeight: 600, color: "#fff", cursor: d.conectado && !ocupado ? "pointer" : "default", opacity: d.conectado && !ocupado ? 1 : 0.5 }}>
+                Subir otra foto
+                <input type="file" accept="image/png,image/jpeg,image/webp" onChange={fotoPropia} disabled={Boolean(ocupado) || !d.conectado} style={{ display: "none" }} />
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <label style={labelSt}>Info (frase corta) {contador("about")}</label>
+            <input value={form.about} onChange={e => set("about", e.target.value)} style={{ ...fieldSt, marginBottom: "12px" }} />
+            <label style={labelSt}>Descripción {contador("description")}</label>
+            <textarea value={form.description} onChange={e => set("description", e.target.value)} rows={8} style={{ ...fieldSt, resize: "vertical", marginBottom: "12px", lineHeight: 1.45 }} />
+            <label style={labelSt}>Dirección {contador("address")}</label>
+            <input value={form.address} onChange={e => set("address", e.target.value)} style={{ ...fieldSt, marginBottom: "12px" }} />
+            <label style={labelSt}>Email (opcional)</label>
+            <input type="email" value={form.email} onChange={e => set("email", e.target.value)} placeholder="ventas@…" style={{ ...fieldSt, marginBottom: "12px" }} />
+            <label style={labelSt}>Sitios web (hasta 2)</label>
+            <input value={form.web1} onChange={e => set("web1", e.target.value)} placeholder="Catálogo" style={{ ...fieldSt, marginBottom: "8px" }} />
+            <input value={form.web2} onChange={e => set("web2", e.target.value)} placeholder="Instagram" style={{ ...fieldSt, marginBottom: "12px" }} />
+            <label style={labelSt}>Rubro</label>
+            <select value={form.vertical} onChange={e => set("vertical", e.target.value)} style={{ ...fieldSt, marginBottom: "14px" }}>
+              {(d.rubros || Object.keys(RUBRO_TXT)).map(r => <option key={r} value={r}>{RUBRO_TXT[r] || r}</option>)}
+            </select>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <Btn onClick={guardar} disabled={Boolean(ocupado) || !d.conectado || ["about", "description", "address", "email"].some(k => form[k].length > L[k])}>{ocupado === "guardar" ? "Guardando…" : "Guardar en WhatsApp"}</Btn>
+              <Btn variant="ghost" onClick={() => setForm(aForm(d.sugerido))} disabled={Boolean(ocupado)}>Usar textos sugeridos</Btn>
+            </div>
+            <div style={{ color: "#6b7280", fontSize: "11px", marginTop: "10px", lineHeight: 1.5 }}>El <b>nombre</b> que se muestra ({nombre}) se cambia desde WhatsApp Manager y lo revisa Meta. El horario de atención va en la descripción.</div>
+          </div>
+        </div>
+      )}
+      {(msg.ok || msg.error) && <div style={{ marginTop: "12px", fontSize: "13px", color: msg.error ? "#fca5a5" : "#6ee7b7" }}>{msg.error || msg.ok}</div>}
+    </div>
+  );
+}
+
 // ─── AUTOMATIZACIONES (postventa + resumen diario por WhatsApp) ───────────────
 async function apiAuto(ruta, metodo = "GET") {
   const r = await fetch("/api/auto" + ruta, { method: metodo, headers: { "x-panel-key": getClave() } });
@@ -1089,6 +1204,7 @@ const Clientes = ({ clientes, pedidos, accion }) => {
         <StatCard label="Ticket promedio" value={fmt(ticket)} accent="#0066FF" icon="finanzas" />
       </div>
 
+      <PerfilWhatsApp />
       <Automatizaciones />
 
       <div style={{ display: "flex", gap: "8px", marginBottom: "16px", flexWrap: "wrap" }}>

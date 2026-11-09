@@ -74,6 +74,12 @@ Botón **✨ Asistente IA** abajo a la derecha. Ve en vivo tu stock, ventas (120
 ### Perfil de WhatsApp del bot (en /gestion → Clientes)
 Foto, info, descripción, dirección, email, web y rubro que ve el cliente al tocar el nombre del chat, con vista previa. **Poner logo TECNO riv** sube el logo como foto (640×640) y **Usar textos sugeridos** arma la descripción con los datos de `src/negocio.js`. Usa `WHATSAPP_TOKEN` y `PHONE_NUMBER_ID`; para la foto busca solo el ID de la app (si falla, cargá `META_APP_ID` en Render). El nombre visible se cambia en WhatsApp Manager (lo revisa Meta).
 
+### Galería de fotos por producto (en /gestion → Stock)
+- Tocá la miniatura de un producto: ves todas sus fotos, subís varias juntas desde el celu (se achican a 1600 px antes de subir), elegís la **principal** (catálogo, WhatsApp, Marketplace) y borrás las que no sirven.
+- **/contenido rota las fotos:** cada pieza nueva usa la foto menos usada de cada producto (queda guardada en la pieza; "Rehacer" mantiene la misma, o pedile otras con `otrasFotos`).
+- Las fotos se guardan en el bucket público `productos` de Supabase Storage (carpeta `galeria/`). Tabla: `supabase-fotos.sql`.
+- Importación masiva desde links (ej. Google Drive compartido): `POST /api/gestion/fotos/importar` con `[{ producto_id, url, origen_id }]`; no duplica lo ya importado.
+
 ### Catálogo dentro de WhatsApp (ícono de tienda en el perfil + carrito)
 - El catálogo de Meta **"Tecno Riv - Catálogo WhatsApp"** (ID en `src/negocio.js` → `catalogoMeta`) se llena solo con `/catalogo/meta.csv`: productos activos **con foto**, precio de lista, precio promo si hay, disponibilidad y link a `/catalogo?p=ID`. Nunca expone costos ni stock exacto.
 - En Meta Commerce Manager → el catálogo → **Orígenes de datos** → feed programado **cada hora** con esa URL.
@@ -114,7 +120,7 @@ Editá el archivo `src/negocio.js`.
 
 ## Instalación (una sola vez)
 
-1. **Supabase:** abrí tu proyecto → **SQL Editor** → pegá el contenido de `supabase.sql` → **Run**. Después corré también `supabase-gestion.sql`, `supabase-margen.sql`, `supabase-publicaciones.sql`, `supabase-instagram.sql`, `supabase-contenido.sql` y `supabase-postventa.sql` (agrega clientes, gastos y el stock automático; se puede correr más de una vez). Cargá tus productos reales en la tabla `productos` o desde `/gestion`.
+1. **Supabase:** abrí tu proyecto → **SQL Editor** → pegá el contenido de `supabase.sql` → **Run**. Después corré también `supabase-gestion.sql`, `supabase-margen.sql`, `supabase-publicaciones.sql`, `supabase-instagram.sql`, `supabase-contenido.sql` `supabase-postventa.sql` y `supabase-fotos.sql` (agrega clientes, gastos y el stock automático; se puede correr más de una vez). Cargá tus productos reales en la tabla `productos` o desde `/gestion`.
 2. **Variables:** en tu hosting (Render, Railway, etc.) cargá las variables de `.env.example`:
    - `CLAUDE_API_KEY`, `WHATSAPP_TOKEN`, `PHONE_NUMBER_ID`, `VERIFY_TOKEN`, `SUPABASE_URL`, `SUPABASE_KEY` (las mismas que ya usabas)
    - **Nuevas:** `OWNER_PHONE` (tu número para los avisos de venta, ej `5493584123456`) y `PANEL_PASSWORD` (inventá una contraseña).

@@ -451,6 +451,48 @@ function router(chequearClave, explicarError = (e) => e.message) {
 
   r.delete('/publicaciones/:id', async (req, res) => responder(res, await supabase.from('publicaciones').delete().eq('id', req.params.id)));
 
+  // ── Galería de fotos por producto ──
+  r.get('/fotos', async (req, res) => {
+    let q = supabase.from('producto_fotos').select('id, producto_id, url, origen, usos, ultimo_uso, created_at').order('created_at', { ascending: false }).limit(2000);
+    if (req.query.producto_id) q = q.eq('producto_id', req.query.producto_id);
+    const { data, error } = await q;
+    if (error) return res.status(500).json({ error: /does not exist|schema cache/i.test(error.message) ? 'Falta correr supabase-fotos.sql en Supabase' : error.message });
+    res.json(data);
+  });
+
+  // Subir desde el panel: { imagen: dataURL }
+  r.post('/productos/:id/fotos', async (req, res) => {
+    const img = String(req.body.imagen || '');
+    if (!/^data:image\/(png|jpeg|webp|heic|heif);base64,/.test(img)) return res.status(400).json({ error: 'Subí una imagen JPG, PNG o WEBP' });
+    try {
+      res.json(await require('./fotos').agregar({ producto_id: Number(req.params.id), buffer: Buffer.from(img.split(',')[1], 'base64') }));
+    } catch (e) { res.status(500).json({ error: explicarError(e) }); }
+  });
+
+  // Importar desde links (Google Drive compartido): [{ producto_id, url, origen_id, nombre }]
+  r.post('/fotos/importar', async (req, res) => {
+    try { res.json(await require('./fotos').importar(Array.isArray(req.body) ? req.body : [])); }
+    catch (e) { res.status(500).json({ error: explicarError(e) }); }
+  });
+
+  // Usar esta foto como principal (catálogo, WhatsApp y Marketplace)
+  r.post('/fotos/:id/principal', async (req, res) => {
+    const { data: f, error } = await supabase.from('producto_fotos').select('producto_id, url').eq('id', req.params.id).single();
+    if (error) return res.status(404).json({ error: 'No existe esa foto' });
+    responder(res, await supabase.from('productos').update({ imagen_url: f.url }).eq('id', f.producto_id).select('id, imagen_url').single());
+  });
+
+  r.delete('/fotos/:id', async (req, res) => {
+    const { data: f } = await supabase.from('producto_fotos').select('producto_id, url').eq('id', req.params.id).maybeSingle();
+    if (!f) return res.json({ ok: true });
+    const { data: p } = await supabase.from('productos').select('imagen_url').eq('id', f.producto_id).single();
+    if (p?.imagen_url === f.url) return res.status(400).json({ error: 'Es la foto principal: elegí otra como principal antes de borrarla.' });
+    await supabase.from('producto_fotos').delete().eq('id', req.params.id);
+    const ruta = f.url.split('/object/public/productos/')[1];
+    if (ruta && ruta.startsWith('galeria/')) await supabase.storage.from('productos').remove([ruta]);
+    res.json({ ok: true });
+  });
+
   // Carga rápida: varios productos de una vez [{ id, costo, precio }]
   r.post('/productos/lote', async (req, res) => {
     const filas = Array.isArray(req.body) ? req.body.slice(0, 500) : [];

@@ -363,10 +363,79 @@ const AyudaPrecio = ({ precio, costo, ajustes, onUsar }) => {
   );
 };
 
+// ─── GALERÍA DE FOTOS DE UN PRODUCTO ──────────────────────────────────────────
+// Achica en el celu antes de subir (rápido con datos móviles): 1600 px, JPG.
+async function achicarImagen(file, lado = 1600) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((ok, ko) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ko(new Error(`No se pudo leer ${file.name}`)); i.src = url; });
+    const k = Math.min(1, lado / Math.max(img.width, img.height));
+    const c = document.createElement("canvas");
+    c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL("image/jpeg", 0.85);
+  } finally { URL.revokeObjectURL(url); }
+}
+
+function Galeria({ producto, fotos, onClose, onCambio }) {
+  const [subiendo, setSubiendo] = useState("");
+  const [error, setError] = useState("");
+  const [ver, setVer] = useState(null);
+  const subir = async (e) => {
+    const archivos = [...(e.target.files || [])]; e.target.value = "";
+    setError("");
+    for (let i = 0; i < archivos.length; i++) {
+      setSubiendo(`Subiendo ${i + 1} de ${archivos.length}…`);
+      try { await api(`/productos/${producto.id}/fotos`, "POST", { imagen: await achicarImagen(archivos[i]) }); }
+      catch (err) { setError(err.message); }
+    }
+    setSubiendo(""); await onCambio();
+  };
+  const hacer = async (fn) => { setError(""); try { await fn(); await onCambio(); } catch (err) { setError(err.message); } };
+  const ordenadas = [...fotos].sort((a, b) => (b.url === producto.imagen_url) - (a.url === producto.imagen_url) || String(b.created_at).localeCompare(String(a.created_at)));
+  return (
+    <Modal title={`Fotos · ${producto.nombre}`} onClose={onClose} ancho="640px">
+      <p style={{ color: "#9ca3af", fontSize: "13px", margin: "0 0 14px", lineHeight: 1.5 }}>
+        La <b style={{ color: "#fff" }}>principal</b> se usa en el catálogo, WhatsApp y Marketplace. En /contenido se rota: cada pieza nueva usa la foto menos usada, así el feed no repite.
+      </p>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: "10px" }}>
+        <label style={{ aspectRatio: "1", borderRadius: "12px", border: "1.5px dashed rgba(96,165,250,0.5)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "6px", color: "#60a5fa", fontSize: "13px", fontWeight: 600, cursor: subiendo ? "default" : "pointer", textAlign: "center", padding: "8px" }}>
+          <Icon name="plus" size={22} />{subiendo || "Agregar fotos"}
+          <input type="file" accept="image/*" multiple onChange={subir} disabled={Boolean(subiendo)} style={{ display: "none" }} />
+        </label>
+        {ordenadas.map(f => {
+          const principal = f.url === producto.imagen_url;
+          return (
+            <div key={f.id} style={{ position: "relative", aspectRatio: "1", borderRadius: "12px", overflow: "hidden", border: principal ? "2px solid #1EB6FF" : "1px solid rgba(255,255,255,0.08)", background: "#0b0f19" }}>
+              <img src={f.url} alt="" loading="lazy" onClick={() => setVer(f)} style={{ width: "100%", height: "100%", objectFit: "cover", cursor: "zoom-in", display: "block" }} />
+              <div style={{ position: "absolute", top: 6, left: 6, display: "flex", gap: "4px" }}>
+                {principal && <Badge color="#1EB6FF">PRINCIPAL</Badge>}
+                <span style={{ fontSize: "10px", fontWeight: 700, background: "rgba(0,0,0,0.7)", color: "#d1d5db", padding: "2px 6px", borderRadius: "100px" }}>{f.usos ? `usada ${f.usos}×` : "sin usar"}</span>
+              </div>
+              <div style={{ position: "absolute", bottom: 6, left: 6, right: 6, display: "flex", gap: "4px", justifyContent: "flex-end" }}>
+                {!principal && <button onClick={() => hacer(() => api(`/fotos/${f.id}/principal`, "POST"))} style={{ background: "rgba(0,0,0,0.75)", color: "#fff", border: "none", borderRadius: "8px", padding: "4px 8px", fontSize: "11px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>★ Principal</button>}
+                {!principal && <button onClick={() => confirm("¿Borrar esta foto?") && hacer(() => api(`/fotos/${f.id}`, "DELETE"))} title="Borrar" style={{ background: "rgba(0,0,0,0.75)", color: "#fca5a5", border: "none", borderRadius: "8px", padding: "4px 7px", cursor: "pointer", display: "flex" }}><Icon name="trash" size={12} /></button>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {fotos.length < 4 && <div style={{ color: "#f59e0b", fontSize: "12px", marginTop: "12px" }}>Tiene {fotos.length} foto{fotos.length === 1 ? "" : "s"}: con 4 o más el feed varía mucho más.</div>}
+      {error && <div style={{ color: "#fca5a5", fontSize: "13px", marginTop: "10px" }}>{error}</div>}
+      {ver && <Visor items={[{ src: ver.url, nombre: producto.nombre }]} onClose={() => setVer(null)} />}
+    </Modal>
+  );
+}
+
 const Stock = ({ productos, ajustes, accion, filtroInicial, faltaMargen }) => {
   const [modal, setModal] = useState(null); // "producto" | "costos" | "ajustes" | "marketplace"
   const [pubProducto, setPubProducto] = useState(null);
   const [verFoto, setVerFoto] = useState(null);
+  const [galeria, setGaleria] = useState(null); // producto con la galería abierta
+  const [fotos, setFotos] = useState([]);
+  const cargarFotos = useCallback(() => api("/fotos").then(setFotos).catch(() => {}), []);
+  useEffect(() => { cargarFotos(); }, [cargarFotos]);
+  const cantFotos = useMemo(() => fotos.reduce((m, f) => ({ ...m, [f.producto_id]: (m[f.producto_id] || 0) + 1 }), {}), [fotos]);
   const [editando, setEditando] = useState(null);
   const [form, setForm] = useState(productoVacio);
   const [filtro, setFiltro] = useState(filtroInicial || "todos");
@@ -450,8 +519,9 @@ const Stock = ({ productos, ajustes, accion, filtroInicial, faltaMargen }) => {
                 return (
                   <Fila key={p.id} last={i === items.length - 1}>
                     <div style={{ flex: 1, minWidth: "200px", display: "flex", alignItems: "center", gap: "12px", opacity: p.activo === false ? 0.5 : 1 }}>
-                      <button onClick={() => p.imagen_url ? setVerFoto(p) : abrir(p)} title={p.imagen_url ? "Ver foto" : "Agregar foto"} style={{ width: 52, height: 52, flexShrink: 0, padding: 0, borderRadius: "12px", overflow: "hidden", cursor: "pointer", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center", color: "#4b5563" }}>
-                        {p.imagen_url ? <img src={p.imagen_url} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={e => { e.currentTarget.style.display = "none"; }} /> : <Icon name="stock" size={20} />}
+                      <button onClick={() => setGaleria(p)} title="Fotos del producto" style={{ width: 52, height: 52, flexShrink: 0, padding: 0, borderRadius: "12px", overflow: "hidden", cursor: "pointer", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center", color: "#4b5563", position: "relative" }}>
+                        {p.imagen_url ? <img src={p.imagen_url} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={e => { e.currentTarget.style.display = "none"; }} /> : <Icon name="plus" size={20} />}
+                        {(cantFotos[p.id] || 0) > 0 && <span style={{ position: "absolute", right: 2, bottom: 2, background: "rgba(0,0,0,0.75)", color: "#fff", fontSize: "10px", fontWeight: 800, borderRadius: "6px", padding: "1px 5px" }}>{cantFotos[p.id]}</span>}
                       </button>
                       <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ color: "#fff", fontWeight: 600, fontSize: "14px", display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
@@ -487,6 +557,7 @@ const Stock = ({ productos, ajustes, accion, filtroInicial, faltaMargen }) => {
       })}
 
       {verFoto && <Visor items={[{ src: verFoto.imagen_url, nombre: verFoto.nombre }]} onClose={() => setVerFoto(null)} />}
+      {galeria && <Galeria producto={productos.find(x => x.id === galeria.id) || galeria} fotos={fotos.filter(f => f.producto_id === galeria.id)} onClose={() => setGaleria(null)} onCambio={async () => { await cargarFotos(); await accion(async () => {}); }} />}
 
       {modal === "producto" && (
         <Modal title={editando ? "Editar producto" : "Nuevo producto"} onClose={() => setModal(null)}>

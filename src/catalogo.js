@@ -83,4 +83,40 @@ async function api(req, res) {
   }
 }
 
-module.exports = { api, waInternacional };
+// ───────── FEED PARA META (catálogo de WhatsApp / Instagram) ─────────
+// Meta lo lee cada hora desde /catalogo/meta.csv: precios, promo y disponibilidad salen de Supabase.
+// Solo van los productos con foto (Meta los rechaza sin imagen). Nunca expone costos ni stock exacto.
+const idMeta = (id) => `TR-${id}`;
+const csv = (v) => `"${String(v ?? '').replace(/"/g, '""').replace(/[\r\n]+/g, ' ')}"`;
+
+async function feedMeta(req, res) {
+  if (!supabase) return res.status(503).send('Catálogo no disponible');
+  try {
+    const datos = await armarCatalogo();
+    const base = (process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || `https://${req.get('host')}`).replace(/\/$/, '');
+    const d = datos.negocio.descuento_efectivo;
+    const cols = ['id', 'title', 'description', 'availability', 'condition', 'price', 'sale_price', 'link', 'image_link', 'brand', 'product_type'];
+    const filas = datos.productos.filter((p) => p.imagen).map((p) => {
+      const extra = [d ? `${d}% OFF pagando en efectivo` : '', 'Envío gratis en Río Cuarto', negocio.garantia].filter(Boolean).join(' · ');
+      const desc = `${String(p.descripcion || p.nombre).trim().replace(/[.\s]+$/, '')}. ${extra}.`.slice(0, 5000);
+      const lista = p.precio_anterior || p.precio;
+      return [
+        idMeta(p.id), p.nombre.slice(0, 150), desc,
+        p.estado === 'agotado' ? 'out of stock' : 'in stock', 'new',
+        `${Number(lista).toFixed(2)} ARS`, p.precio_anterior ? `${Number(p.precio).toFixed(2)} ARS` : '',
+        `${base}/catalogo?p=${p.id}`, p.imagen, negocio.nombre, p.categoria,
+      ].map(csv).join(',');
+    });
+    res.set('Content-Type', 'text/csv; charset=utf-8');
+    res.set('Cache-Control', 'public, max-age=300');
+    res.send([cols.join(','), ...filas].join('\n'));
+  } catch (e) {
+    console.error('Feed Meta:', e.message);
+    res.status(500).send('Error armando el feed');
+  }
+}
+
+// "TR-42" -> 42 (lo que manda WhatsApp cuando el cliente pide desde el catálogo)
+const idDesdeMeta = (rid) => Number(String(rid || '').replace(/^TR-/i, '')) || null;
+
+module.exports = { api, waInternacional, feedMeta, idDesdeMeta };

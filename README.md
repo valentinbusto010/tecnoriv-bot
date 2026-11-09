@@ -74,6 +74,12 @@ Botón **✨ Asistente IA** abajo a la derecha. Ve en vivo tu stock, ventas (120
 ### Perfil de WhatsApp del bot (en /gestion → Clientes)
 Foto, info, descripción, dirección, email, web y rubro que ve el cliente al tocar el nombre del chat, con vista previa. **Poner logo TECNO riv** sube el logo como foto (640×640) y **Usar textos sugeridos** arma la descripción con los datos de `src/negocio.js`. Usa `WHATSAPP_TOKEN` y `PHONE_NUMBER_ID`; para la foto busca solo el ID de la app (si falla, cargá `META_APP_ID` en Render). El nombre visible se cambia en WhatsApp Manager (lo revisa Meta).
 
+### Catálogo dentro de WhatsApp (ícono de tienda en el perfil + carrito)
+- El catálogo de Meta **"Tecno Riv - Catálogo WhatsApp"** (ID en `src/negocio.js` → `catalogoMeta`) se llena solo con `/catalogo/meta.csv`: productos activos **con foto**, precio de lista, precio promo si hay, disponibilidad y link a `/catalogo?p=ID`. Nunca expone costos ni stock exacto.
+- En Meta Commerce Manager → el catálogo → **Orígenes de datos** → feed programado **cada hora** con esa URL.
+- En /gestion → Clientes → Perfil de WhatsApp → **Catálogo en WhatsApp**: poné el ID de la cuenta de WhatsApp y tocá **Conectar y mostrar catálogo** (conecta el catálogo y prende catálogo + carrito).
+- Cuando un cliente manda el carrito, el bot lo recibe como `[PEDIDO DESDE EL CATÁLOGO DE WHATSAPP]`, confirma total con precios actuales, pide entrega y pago y cierra la venta normal.
+
 ### Postventa y resumen diario por WhatsApp (en /gestion → Clientes → Automatizaciones)
 - **Seguimiento:** a los 3 días de marcar un pedido como **entregado**, el bot le escribe "¿Cómo te está funcionando tu…?". Si está conforme, le pide que te etiquete en Instagram; si tiene un problema, te lo deriva.
 - **Oferta de recompra:** a los 35 días le ofrece un accesorio que combina con lo que compró (malla/hidrogel para smartwatch, MagSafe para quien compró funda, etc.) con 10% OFF por 7 días. Si lo compra por el bot, el descuento se aplica solo. Quien responde **BAJA** no recibe más ofertas.

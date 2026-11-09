@@ -138,7 +138,34 @@ async function subirFotoPerfil(jpeg) {
   return leerPerfil();
 }
 
+// ───────── CATÁLOGO EN WHATSAPP (ícono de tienda en el perfil + carrito) ─────────
+async function estadoCatalogoWA(wabaId) {
+  const [com, cats] = await Promise.all([
+    axios.get(`${GRAPH}/${process.env.PHONE_NUMBER_ID}/whatsapp_commerce_settings`, { headers: headers(), timeout: 20000 }).then((r) => r.data.data?.[0] || {}),
+    wabaId ? axios.get(`${GRAPH}/${wabaId}/product_catalogs`, { headers: headers(), timeout: 20000 }).then((r) => r.data.data || [], () => null) : Promise.resolve(null),
+  ]);
+  return { visible: Boolean(com.is_catalog_visible), carrito: Boolean(com.is_cart_enabled), catalogos: cats };
+}
+
+// Conecta el catálogo de Meta a la cuenta de WhatsApp (si hace falta) y prende el ícono del catálogo y el carrito.
+async function conectarCatalogoWA({ wabaId, catalogId, visible = true }) {
+  const pasos = [];
+  if (wabaId && catalogId) {
+    const actuales = await axios.get(`${GRAPH}/${wabaId}/product_catalogs`, { headers: headers(), timeout: 20000 }).then((r) => r.data.data || [], () => []);
+    if (!actuales.some((c) => String(c.id) === String(catalogId))) {
+      await axios.post(`${GRAPH}/${wabaId}/product_catalogs`, { catalog_id: catalogId }, { headers: headers(), timeout: 20000 });
+      pasos.push('Catálogo conectado a la cuenta de WhatsApp');
+    } else pasos.push('El catálogo ya estaba conectado');
+  }
+  await axios.post(`${GRAPH}/${process.env.PHONE_NUMBER_ID}/whatsapp_commerce_settings`, null, {
+    headers: headers(), params: { is_catalog_visible: visible, is_cart_enabled: visible }, timeout: 20000,
+  });
+  pasos.push(visible ? 'Catálogo y carrito visibles en el chat y el perfil' : 'Catálogo oculto');
+  return { pasos, ...(await estadoCatalogoWA(wabaId)) };
+}
+
 module.exports = {
+  estadoCatalogoWA, conectarCatalogoWA,
   enviarTexto, enviarImagen, enviarPlantilla, explicarErrorWA, destino, activarNumero, limpiarParam, crearPlantillas,
   leerPerfil, guardarPerfil, subirFotoPerfil, LIMITES, RUBROS,
 };

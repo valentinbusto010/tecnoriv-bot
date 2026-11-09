@@ -926,6 +926,57 @@ async function apiWa(ruta, metodo = "GET", body) {
 const RUBRO_TXT = { RETAIL: "Tienda", OTHER: "Otro", PROF_SERVICES: "Servicios profesionales", ENTERTAIN: "Entretenimiento", EDU: "Educación", APPAREL: "Ropa", BEAUTY: "Belleza", AUTO: "Autos" };
 const leerArchivo = (f) => new Promise((ok, ko) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = ko; r.readAsDataURL(f); });
 
+// Catálogo de Meta dentro de WhatsApp: el ícono de tienda en el perfil y el carrito.
+function CatalogoWhatsApp() {
+  const [d, setD] = useState(null);
+  const [waba, setWaba] = useState(() => { try { return localStorage.getItem("wabaId") || ""; } catch { return ""; } });
+  const [ocupado, setOcupado] = useState(false);
+  const [msg, setMsg] = useState({ ok: "", error: "" });
+  const [copiado, setCopiado] = useState(false);
+  const cargar = useCallback(async (w) => { try { setD(await apiWa(`/catalogo?wabaId=${encodeURIComponent(w || "")}`)); } catch (e) { setMsg({ ok: "", error: e.message }); } }, []);
+  useEffect(() => { cargar(waba); }, [cargar]); // eslint-disable-line
+  const guardarWaba = (v) => { setWaba(v); try { localStorage.setItem("wabaId", v); } catch {} };
+  const conectar = async (visible = true) => {
+    setOcupado(true); setMsg({ ok: "", error: "" });
+    try { const r = await apiWa("/catalogo", "POST", { wabaId: waba, catalogId: d?.catalogId, visible }); setD(x => ({ ...x, ...r })); setMsg({ ok: r.pasos.map(t => "✓ " + t).join("\n"), error: "" }); }
+    catch (e) { setMsg({ ok: "", error: e.message }); } finally { setOcupado(false); }
+  };
+  if (!d) return null;
+  const conectado = d.catalogos ? d.catalogos.some(c => String(c.id) === String(d.catalogId)) : null;
+  const activo = d.visible && d.carrito;
+  return (
+    <div style={{ marginTop: "18px", paddingTop: "16px", borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+        <div>
+          <div style={{ color: "#fff", fontWeight: 700, fontSize: "14px" }}>🛍️ Catálogo en WhatsApp</div>
+          <div style={{ color: "#6b7280", fontSize: "12px", marginTop: "2px" }}>Ícono de tienda en el perfil y el chat: el cliente elige productos, arma el carrito y el bot cierra la venta.</div>
+        </div>
+        <Badge color={activo ? "#10b981" : "#f59e0b"}>{activo ? "visible" : "no visible"}</Badge>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "10px", marginTop: "12px" }}>
+        <div>
+          <label style={labelSt}>ID de la cuenta de WhatsApp</label>
+          <input value={waba} onChange={e => guardarWaba(e.target.value.replace(/\D/g, ""))} onBlur={() => cargar(waba)} inputMode="numeric" placeholder="WhatsApp Business Account ID" style={fieldSt} />
+        </div>
+        <div>
+          <label style={labelSt}>Catálogo de Meta</label>
+          <div style={{ ...fieldSt, color: "#9ca3af" }}>{d.catalogId || "—"} {conectado === true ? <span style={{ color: "#10b981" }}>· conectado</span> : conectado === false ? <span style={{ color: "#f59e0b" }}>· sin conectar</span> : ""}</div>
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: "8px", marginTop: "12px", flexWrap: "wrap" }}>
+        <Btn onClick={() => conectar(true)} disabled={ocupado || !waba || !d.catalogId || Boolean(d.error && !d.catalogos)}>{ocupado ? "Conectando…" : activo && conectado ? "Volver a sincronizar" : "Conectar y mostrar catálogo"}</Btn>
+        {activo && <Btn variant="ghost" onClick={() => conectar(false)} disabled={ocupado}>Ocultar</Btn>}
+      </div>
+      <div style={{ marginTop: "12px", fontSize: "12px", color: "#6b7280", lineHeight: 1.5 }}>
+        Los productos (con foto) se cargan solos desde tu stock: Meta lee este link cada hora.{" "}
+        <button onClick={() => { navigator.clipboard?.writeText(d.feedUrl); setCopiado(true); setTimeout(() => setCopiado(false), 1500); }} style={{ background: "none", border: "none", color: "#60a5fa", cursor: "pointer", padding: 0, fontSize: "12px", fontFamily: "inherit", wordBreak: "break-all" }}>{copiado ? "¡Copiado!" : d.feedUrl}</button>
+        <br />El ID de la cuenta está en WhatsApp Manager → Configuración de la cuenta (o en developers.facebook.com → WhatsApp → Configuración de la API).
+      </div>
+      {(msg.ok || msg.error || d.error) && <div style={{ marginTop: "10px", fontSize: "13px", whiteSpace: "pre-line", color: msg.error || (!msg.ok && d.error) ? "#fca5a5" : "#6ee7b7" }}>{msg.error || msg.ok || d.error}</div>}
+    </div>
+  );
+}
+
 function PerfilWhatsApp() {
   const [d, setD] = useState(null);
   const [form, setForm] = useState(null);
@@ -1027,6 +1078,7 @@ function PerfilWhatsApp() {
         </div>
       )}
       {(msg.ok || msg.error) && <div style={{ marginTop: "12px", fontSize: "13px", color: msg.error ? "#fca5a5" : "#6ee7b7" }}>{msg.error || msg.ok}</div>}
+      {abierto && <CatalogoWhatsApp />}
     </div>
   );
 }

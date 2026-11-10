@@ -35,7 +35,7 @@ function enviarCatalogoWeb(to, texto) {
     interactive: {
       type: 'cta_url',
       body: { text: texto },
-      action: { name: 'cta_url', parameters: { display_text: 'Ver catálogo 🛍️', url: `${base}/catalogo` } },
+      action: { name: 'cta_url', parameters: { display_text: 'Ver catálogo 🛍️', url: `${base}/catalogo?v=2` } },
     },
   });
 }

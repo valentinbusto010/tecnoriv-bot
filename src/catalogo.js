@@ -66,6 +66,8 @@ async function armarCatalogo() {
       descuento_efectivo: efectivoVigente(promo),
     },
     promo: promo ? { descuento: promo.descuento, hasta: fechaCorta(promo.hasta), regalo } : null,
+    // Medios de pago del carrito. Tarjeta: 'online' (Mercado Pago, con MP_ACCESS_TOKEN en Render) o 'link' (se manda por WhatsApp).
+    pagos: { tarjeta: process.env.MP_ACCESS_TOKEN ? 'online' : 'link', transferencia: Boolean(negocio.transferencia?.alias), efectivo: true },
     productos,
   };
   cache = { t: Date.now(), datos };

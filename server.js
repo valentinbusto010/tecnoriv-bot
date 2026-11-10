@@ -9,6 +9,7 @@ const { estadoCatalogo, obtenerHistorial, guardarMensaje } = require('./src/dato
 const gestion = require('./src/gestion');
 const contenido = require('./src/contenido');
 const catalogo = require('./src/catalogo');
+const checkout = require('./src/checkout');
 
 const app = express();
 app.use(express.json({ limit: '2mb' })); // 2 MB: alcanza para subir el logo de la marca
@@ -158,6 +159,7 @@ app.post('/webhook', async (req, res) => {
     await guardarMensaje(from, 'user', text);
     const conocido = await gestion.origenDe(from).catch(() => null);
     const extra = (await postventa.contextoCliente(from).catch(() => '')) +
+      (await checkout.contextoCliente(from, text).catch(() => '')) +
       (conocido ? `\nCÓMO NOS CONOCIÓ: ya lo sabemos (${conocido}), no lo preguntes.` : '');
     const { texto, ventas, humano, fotos, origen, catalogo: verCatalogo } = await responderCliente([...historial, { role: 'user', content: text }], imagen, extra);
 
@@ -269,6 +271,8 @@ app.get('/wa', (req, res) => {
 app.get('/catalogo', (req, res) => res.sendFile(path.join(__dirname, 'public', 'catalogo.html')));
 app.get('/catalogo.js', (req, res) => res.sendFile(path.join(__dirname, 'public', 'catalogo.js')));
 app.get('/api/catalogo', catalogo.api);
+// Carrito del catálogo: pedidos con tarjeta (Mercado Pago), transferencia o efectivo. Ver src/checkout.js
+app.use('/api', checkout.router(avisarDueno));
 // Feed para el catálogo de Meta (WhatsApp / Instagram): Meta lo lee solo cada hora
 app.get('/catalogo/meta.csv', catalogo.feedMeta);
 
@@ -456,3 +460,4 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Servidor corriendo en puerto ${PORT}`));
 contenido.iniciarProgramador(avisarDueno);
 postventa.iniciar();
+checkout.iniciar(avisarDueno);

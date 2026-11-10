@@ -268,7 +268,7 @@ const AJUSTES_TEXTO = ['promo_hasta', 'promo_regalo_categoria'];
 
 const CAMPOS = {
   productos: ['nombre', 'categoria', 'precio', 'costo', 'stock', 'alerta', 'descripcion', 'cuotas_sin_interes', 'activo', 'imagen_url'],
-  pedidos: ['cliente', 'cliente_id', 'telefono', 'producto_id', 'producto', 'cantidad', 'monto', 'estado', 'canal', 'entrega', 'pago', 'fecha'],
+  pedidos: ['cliente', 'cliente_id', 'telefono', 'producto_id', 'producto', 'cantidad', 'monto', 'estado', 'canal', 'entrega', 'pago', 'fecha', 'pago_estado'],
   gastos: ['descripcion', 'monto', 'categoria', 'fecha'],
   clientes: ['nombre', 'telefono', 'notas', 'origen'],
 };
@@ -284,6 +284,7 @@ function limpiar(tabla, body) {
     out[k] = v;
   }
   if (out.estado && !ESTADOS.includes(out.estado)) delete out.estado;
+  if ('pago_estado' in out && !['aprobado', 'a_confirmar', 'link', 'contraentrega'].includes(out.pago_estado)) delete out.pago_estado;
   if (tabla === 'clientes' && out.telefono) out.telefono = out.telefono.replace(/\D/g, '') || null;
   return out;
 }

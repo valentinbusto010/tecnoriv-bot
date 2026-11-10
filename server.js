@@ -43,7 +43,17 @@ async function descargarMedia(mediaId) {
 }
 
 const AVISO_AUDIO = 'Por ahora no puedo escuchar audios 🙏 ¿Me lo escribís? Así te respondo al toque.';
-const CATALOGO_TXT = 'Mirá todos los productos con fotos y precios, y armá tu pedido acá 👇 Lo mandás y te confirmamos al toque.';
+const CATALOGO_WEB_TXT = '🛍️ Este es nuestro catálogo: todos los productos con fotos y precios actualizados. Elegí lo que te guste y lo pedís por acá 👇';
+const CATALOGO_TXT = 'Si preferís, también podés armar el carrito sin salir de WhatsApp 👇 Lo mandás y te confirmamos al toque.';
+
+// Primero el catálogo web propio y después el de WhatsApp. Devuelve true si llegó al menos uno.
+async function mandarCatalogos(to) {
+  let ok = false;
+  await wa.enviarCatalogoWeb(to, CATALOGO_WEB_TXT).then(() => { ok = true; }, (e) => console.error('No se pudo mandar el catálogo web:', e.response?.data?.error?.message || e.message));
+  await wa.enviarCatalogo(to, CATALOGO_TXT).then(() => { ok = true; }, (e) => console.error('No se pudo mandar el catálogo de WhatsApp:', e.response?.data?.error?.message || e.message));
+  if (!ok) throw new Error('No se pudo mandar ningún catálogo');
+  return ok;
+}
 const AVISO_OTRO = 'Por ahora solo puedo leer mensajes de texto y fotos. ¿Me escribís tu consulta? 🙌';
 
 // Texto libre si el dueño escribió en las últimas 23 h; si no, plantilla tr_aviso (ver src/postventa.js).
@@ -89,7 +99,7 @@ app.post('/webhook', async (req, res) => {
     if (gestion.esDueno(from)) postventa.duenoEscribio(); // abre la ventana de 24 h para el resumen completo
     // "catalogo" desde el WhatsApp del dueño: te manda el botón para probar el catálogo.
     if (message.type === 'text' && gestion.esDueno(from) && /^cat[aá]logo$/i.test(message.text.body.trim())) {
-      await wa.enviarCatalogo(from, CATALOGO_TXT).catch(async (e) => {
+      await mandarCatalogos(from).catch(async (e) => {
         await enviarWhatsApp(from, `No se pudo mandar el catálogo: ${wa.explicarErrorWA(e)}`);
       });
       return;
@@ -161,10 +171,7 @@ app.post('/webhook', async (req, res) => {
     await enviarWhatsApp(from, texto);
     let catalogoEnviado = false;
     if (verCatalogo) {
-      await wa.enviarCatalogo(from, CATALOGO_TXT).then(
-        () => { catalogoEnviado = true; },
-        (e) => console.error('No se pudo mandar el catálogo:', e.response?.data?.error?.message || e.message)
-      );
+      catalogoEnviado = await mandarCatalogos(from).catch(() => false);
     }
     // Nota interna en el historial (el cliente no la ve) para que el bot no repita las fotos ni el catálogo.
     await guardarMensaje(from, 'assistant', texto + (enviadas.length ? `\n[Fotos ya enviadas: ${enviadas.join(', ')}]` : '') + (catalogoEnviado ? '\n[Catálogo enviado]' : ''));

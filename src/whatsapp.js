@@ -27,6 +27,19 @@ async function numeroDelBot() {
   return numeroBot;
 }
 
+// Botón al catálogo web propio de Tecno Riv (/catalogo): fotos grandes, precios con promo y pedido por WhatsApp.
+function enviarCatalogoWeb(to, texto) {
+  const base = (process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || 'https://tecnoriv-bot.onrender.com').replace(/\/$/, '');
+  return enviar(to, {
+    type: 'interactive',
+    interactive: {
+      type: 'cta_url',
+      body: { text: texto },
+      action: { name: 'cta_url', parameters: { display_text: 'Ver catálogo 🛍️', url: `${base}/catalogo` } },
+    },
+  });
+}
+
 async function enviarCatalogo(to, texto) {
   try {
     const numero = await numeroDelBot();
@@ -36,7 +49,7 @@ async function enviarCatalogo(to, texto) {
       interactive: {
         type: 'cta_url',
         body: { text: texto },
-        action: { name: 'cta_url', parameters: { display_text: 'Ver catálogo 🛍️', url: `https://wa.me/c/${numero}` } },
+        action: { name: 'cta_url', parameters: { display_text: 'Armar carrito 🛒', url: `https://wa.me/c/${numero}` } },
       },
     });
   } catch (e) {
@@ -194,7 +207,7 @@ async function conectarCatalogoWA({ wabaId, catalogId, visible = true }) {
 }
 
 module.exports = {
-  enviarCatalogo,
+  enviarCatalogo, enviarCatalogoWeb,
   estadoCatalogoWA, conectarCatalogoWA,
   enviarTexto, enviarImagen, enviarPlantilla, explicarErrorWA, destino, activarNumero, limpiarParam, crearPlantillas,
   leerPerfil, guardarPerfil, subirFotoPerfil, LIMITES, RUBROS,

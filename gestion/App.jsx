@@ -995,7 +995,6 @@ async function apiWa(ruta, metodo = "GET", body) {
   return data;
 }
 const RUBRO_TXT = { RETAIL: "Tienda", OTHER: "Otro", PROF_SERVICES: "Servicios profesionales", ENTERTAIN: "Entretenimiento", EDU: "Educación", APPAREL: "Ropa", BEAUTY: "Belleza", AUTO: "Autos" };
-const leerArchivo = (f) => new Promise((ok, ko) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = ko; r.readAsDataURL(f); });
 
 // Catálogo de Meta dentro de WhatsApp: el ícono de tienda en el perfil y el carrito.
 function CatalogoWhatsApp() {
@@ -1072,7 +1071,14 @@ function PerfilWhatsApp() {
   const hacer = async (clave, fn, ok) => { setOcupado(clave); setMsg({ ok: "", error: "" }); try { const r = await fn(); if (r?.perfil) setD(x => ({ ...x, ...r })); setMsg({ ok, error: "" }); } catch (e) { setMsg({ ok: "", error: e.message }); } finally { setOcupado(""); } };
   const guardar = () => hacer("guardar", () => apiWa("/perfil", "PUT", { about: form.about, description: form.description, address: form.address, email: form.email, websites: [form.web1, form.web2], vertical: form.vertical }), "Perfil actualizado en WhatsApp ✓ (en el celu del cliente puede tardar unos minutos)");
   const fotoLogo = () => hacer("foto", () => apiWa("/perfil/foto", "POST", {}), "Foto actualizada con el logo TECNO riv ✓");
-  const fotoPropia = async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (!f) return; if (f.size > 1.4 * 1024 * 1024) return setMsg({ ok: "", error: "La imagen es muy pesada (máx ~1,4 MB)" }); const imagen = await leerArchivo(f); hacer("foto", () => apiWa("/perfil/foto", "POST", { imagen }), "Foto actualizada ✓"); };
+  // Cualquier foto sirve: se achica en el navegador (1024 px, JPG) antes de subirla. WhatsApp la recorta cuadrada al centro.
+  const fotoPropia = async (e) => {
+    const f = e.target.files?.[0]; e.target.value = ""; if (!f) return;
+    let imagen;
+    try { imagen = await achicarImagen(f, 1024); }
+    catch { return setMsg({ ok: "", error: "No pude leer esa imagen. Probá con una JPG o PNG (las HEIC del iPhone, exportalas primero como JPG)." }); }
+    hacer("foto", () => apiWa("/perfil/foto", "POST", { imagen }), "Foto actualizada ✓");
+  };
 
   const p = d.perfil || {};
   const nombre = d.numero?.verified_name || "Tecno Riv";

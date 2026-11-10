@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { Fondo, Marca3D, MiniLogo, card, fieldSt, chipSt, btnFondo } from "../compartido/tema.jsx";
 import Asistente from "../compartido/Asistente.jsx";
@@ -517,8 +517,16 @@ function ElegirFoto({ productoIds, nombres, actual, onElegir, onClose }) {
     </div>, document.body);
 }
 
-function EditorSlides({ p, datos, ocupado, onCancelar, onRehacer }) {
-  const [ed, setEd] = useState(() => JSON.parse(JSON.stringify(p.guion.slides)).map(s => ({ foto: "", ...s })));
+function EditorSlides({ p, datos, ocupado, onCancelar, onRehacer, onSucio }) {
+  const inicial = useMemo(() => JSON.parse(JSON.stringify(p.guion.slides)).map(s => ({ foto: "", ...s })), [p.id]); // eslint-disable-line
+  const [ed, setEd] = useState(inicial);
+  // El titular se escribe libre (con espacios y "/") y recién se separa en líneas al guardar.
+  const [titTxt, setTitTxt] = useState(() => inicial.map(s => (s.titular || []).join(" / ")));
+  const partirTitular = (t) => String(t || "").split("/").map(x => x.trim()).filter(Boolean);
+  const final = () => ed.map((s, i) => ({ ...s, titular: partirTitular(titTxt[i]), items: (s.items || []).map(x => x.trim()).filter(Boolean), items_b: (s.items_b || []).map(x => x.trim()).filter(Boolean) }));
+  const sucio = JSON.stringify(final()) !== JSON.stringify(inicial.map(s => ({ ...s, items: (s.items || []).filter(Boolean), items_b: (s.items_b || []).filter(Boolean) })));
+  useEffect(() => { onSucio?.(sucio); }, [sucio]); // eslint-disable-line
+  const cancelar = () => { if (!sucio || confirm("Tenés cambios sin guardar. ¿Descartarlos?")) onCancelar(); };
   const [eligiendo, setEligiendo] = useState(null);
   const set = (i, cambios) => setEd(x => x.map((s, k) => k === i ? { ...s, ...cambios } : s));
   const nombres = Object.fromEntries((datos.productos || []).map(x => [x.id, x.nombre]));
@@ -528,7 +536,7 @@ function EditorSlides({ p, datos, ocupado, onCancelar, onRehacer }) {
   return (
     <div style={{ ...card, padding: "14px", background: "rgba(0,0,0,0.28)" }}>
       <div style={{ ...sectionLabel, marginBottom: "4px" }}>Editar imágenes</div>
-      <div style={{ color: "#6b7280", fontSize: "12px", marginBottom: "8px" }}>Cambiá textos o fotos de cada slide y tocá <b>Rehacer imágenes</b>: se redibujan con el diseño de la marca.</div>
+      <div style={{ color: "#6b7280", fontSize: "12px", marginBottom: "8px" }}>Cambiá textos o fotos de cada slide y tocá <b>💾 Guardar cambios</b> (abajo): se redibujan con el diseño de la marca.</div>
       {ed.map((s, i) => (
         <div key={i} style={{ display: "flex", gap: "12px", borderTop: i ? "1px solid rgba(255,255,255,0.07)" : "none", padding: "12px 0", flexWrap: "wrap" }}>
           <div style={{ flexShrink: 0, width: altoMini * (p.formato === "historias" ? 9 / 16 : 4 / 5) }}>
@@ -544,10 +552,10 @@ function EditorSlides({ p, datos, ocupado, onCancelar, onRehacer }) {
           <div style={{ flex: 1, minWidth: "200px" }}>
             <div style={{ color: "#1EB6FF", fontSize: "12px", fontWeight: 700, marginBottom: "6px" }}>{i + 1} · {TIPOS_SLIDE[s.tipo] || s.tipo}{s.producto_id ? ` · ${nombres[s.producto_id] || ""}` : ""}</div>
             <input value={s.kicker} onChange={e => set(i, { kicker: e.target.value })} placeholder="Rótulo chico" style={{ ...fieldSt, fontSize: "14px", marginBottom: "6px" }} />
-            <input value={(s.titular || []).join(" / ")} onChange={e => set(i, { titular: e.target.value.split("/").map(t => t.trim()).filter(Boolean) })} placeholder="Titular (separá líneas con /)" style={{ ...fieldSt, fontSize: "14px", marginBottom: "6px" }} />
-            {(s.titular || []).length > 1 && <div style={{ display: "flex", gap: "4px", marginBottom: "6px", flexWrap: "wrap", alignItems: "center" }}>
+            <input value={titTxt[i] ?? ""} onChange={e => { const v = e.target.value; setTitTxt(x => x.map((t, k) => k === i ? v : t)); }} placeholder="Titular (separá líneas con /)" style={{ ...fieldSt, fontSize: "14px", marginBottom: "6px" }} />
+            {partirTitular(titTxt[i]).length > 1 && <div style={{ display: "flex", gap: "4px", marginBottom: "6px", flexWrap: "wrap", alignItems: "center" }}>
               <span style={{ color: "#6b7280", fontSize: "11px" }}>Línea en celeste:</span>
-              {s.titular.map((_, k) => <button key={k} onClick={() => set(i, { destacada: k })} style={{ ...chipSt(s.destacada === k), padding: "3px 10px" }}>{k + 1}</button>)}
+              {partirTitular(titTxt[i]).map((_, k) => <button key={k} onClick={() => set(i, { destacada: k })} style={{ ...chipSt(s.destacada === k), padding: "3px 10px" }}>{k + 1}</button>)}
             </div>}
             {["portada", "texto", "producto", "cta"].includes(s.tipo) && <textarea value={s.cuerpo} onChange={e => set(i, { cuerpo: e.target.value })} rows={2} placeholder="Texto" style={{ ...fieldSt, fontSize: "14px", resize: "vertical" }} />}
             {["lista", "comparativa"].includes(s.tipo) && <textarea value={(s.items || []).join("\n")} onChange={e => set(i, { items: e.target.value.split("\n") })} rows={4} placeholder="Un punto por línea" style={{ ...fieldSt, fontSize: "14px", resize: "vertical" }} />}
@@ -555,9 +563,11 @@ function EditorSlides({ p, datos, ocupado, onCancelar, onRehacer }) {
           </div>
         </div>
       ))}
-      <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end", flexWrap: "wrap" }}>
-        <Btn variant="ghost" onClick={onCancelar}>Cancelar</Btn>
-        <Btn onClick={() => onRehacer(ed.map(s => ({ ...s, items: (s.items || []).filter(Boolean), items_b: (s.items_b || []).filter(Boolean) })))} disabled={ocupado}>{ocupado ? "Rehaciendo…" : "Rehacer imágenes"}</Btn>
+      {/* Barra fija abajo: siempre visible mientras editás, para no olvidarse de guardar */}
+      <div style={{ position: "sticky", bottom: "-22px", margin: "0 -14px -14px", padding: "12px 14px", background: "rgba(10,14,24,0.97)", borderTop: "1px solid rgba(255,255,255,0.1)", borderRadius: "0 0 12px 12px", display: "flex", gap: "8px", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", zIndex: 2 }}>
+        <span style={{ flex: 1, minWidth: "140px", fontSize: "12px", color: ocupado ? "#93c5fd" : sucio ? "#fcd34d" : "#6b7280" }}>{ocupado ? "Guardando y redibujando… (20-40 s, no cierres)" : sucio ? "● Cambios sin guardar" : "Sin cambios"}</span>
+        <Btn variant="ghost" onClick={cancelar} disabled={ocupado}>Cancelar</Btn>
+        <Btn onClick={() => onRehacer(final())} disabled={ocupado || !sucio}>{ocupado ? "Guardando…" : "💾 Guardar cambios"}</Btn>
       </div>
       {eligiendo !== null && <ElegirFoto productoIds={idsDe(ed[eligiendo])} nombres={nombres} actual={ed[eligiendo].foto} onElegir={url => { set(eligiendo, { foto: url }); setEligiendo(null); }} onClose={() => setEligiendo(null)} />}
     </div>
@@ -572,6 +582,9 @@ const Detalle = ({ id, datos, onClose, onCambio }) => {
   const [ocupado, setOcupado] = useState("");
   const [caption, setCaption] = useState("");
   const [editar, setEditar] = useState(null);
+  const [sucio, setSucio] = useState(false);
+  const [aviso, setAviso] = useState("");
+  const cerrar = () => { if (sucio && !confirm("Tenés cambios sin guardar en las imágenes. ¿Cerrar igual?")) return; onClose(); };
   const [dia, setDia] = useState("");
   const [hora, setHora] = useState("20:00");
 
@@ -599,7 +612,7 @@ const Detalle = ({ id, datos, onClose, onCambio }) => {
   const captionCambio = caption !== (p.caption || "");
 
   return (
-    <Modal title={p.titulo} onClose={onClose} ancho="760px">
+    <Modal title={p.titulo} onClose={cerrar} ancho="760px">
       <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", margin: "-6px 0 14px" }}>
         <Badge color={ESTADO[p.estado].color}>{ESTADO[p.estado].label}{p.estado === "programado" ? ` · ${fechaLarga(diaDe(p.programado_para))} ${horaDe(p.programado_para)}` : ""}</Badge>
         <Badge color="#1EB6FF">{nombreFormato(p.formato)}</Badge>
@@ -641,7 +654,9 @@ const Detalle = ({ id, datos, onClose, onCambio }) => {
       {!esMkp && p.guion?.slides && <div style={{ marginBottom: "14px" }}>
         {!editar
           ? <Btn variant="ghost" onClick={() => setEditar(true)} style={{ width: "100%", justifyContent: "center" }}><Icon name="edit" size={14} /> Editar imágenes (textos y fotos)</Btn>
-          : <EditorSlides p={p} datos={datos} ocupado={ocupado === "rehacer"} onCancelar={() => setEditar(null)} onRehacer={(slides) => hacer("rehacer", async () => { await api(`/piezas/${p.id}/rehacer`, "POST", { slides }); setEditar(null); })} />}
+          : <EditorSlides p={p} datos={datos} ocupado={ocupado === "rehacer"} onSucio={setSucio} onCancelar={() => { setEditar(null); setSucio(false); }} onRehacer={(slides) => hacer("rehacer", async () => { await api(`/piezas/${p.id}/rehacer`, "POST", { slides }); setEditar(null); setSucio(false); setAviso("✓ Cambios guardados. Las imágenes ya están actualizadas."); setTimeout(() => setAviso(""), 6000); })} />}
+        {aviso && <div style={{ color: "#6ee7b7", fontSize: "13px", marginTop: "8px", textAlign: "center" }}>{aviso}</div>}
+        {editar && error && <div style={{ color: "#fca5a5", fontSize: "13px", marginTop: "8px" }}>No se guardó: {error}</div>}
       </div>}
 
       <div style={{ ...card, padding: "14px", marginBottom: "14px", background: "rgba(0,0,0,0.28)" }}>

@@ -277,7 +277,12 @@ const Pedidos = ({ pedidos, productos, accion, ajustes }) => {
   const [modal, setModal] = useState(false);
   const [filtro, setFiltro] = useState("todos");
   const [form, setForm] = useState(pedidoVacio);
-  const lista = filtro === "todos" ? pedidos : filtro === "bot" ? pedidos.filter(p => p.origen === "bot") : pedidos.filter(p => p.estado === filtro);
+  const lista = filtro === "todos" ? pedidos : filtro === "bot" ? pedidos.filter(p => p.origen === "bot") : filtro === "web" ? pedidos.filter(p => p.origen === "catalogo") : pedidos.filter(p => p.estado === filtro);
+  // Compras del carrito del catálogo web: estado del pago (ver src/checkout.js)
+  const PAGO_WEB = { aprobado: ["#10b981", "Pagado"], a_confirmar: ["#f59e0b", "Pago a confirmar"], link: ["#f59e0b", "Mandar link de pago"], esperando: ["#60a5fa", "Pagando con tarjeta…"], vencido: ["#6b7280", "Venció sin pago"] };
+  const marcarPagado = (p) => confirm(`¿Confirmás que recibiste el pago de la compra ${p.compra}?`) && accion(async () => {
+    for (const x of pedidos.filter(y => y.compra === p.compra)) await api(`/pedidos/${x.id}`, "PATCH", { pago_estado: "aprobado" });
+  });
 
   const elegirProducto = (id, cantidad = form.cantidad) => {
     const prod = productos.find(p => String(p.id) === String(id));
@@ -294,8 +299,8 @@ const Pedidos = ({ pedidos, productos, accion, ajustes }) => {
     <div>
       <Header kicker="Gestión de pedidos" title="Pedidos" action={<Btn onClick={() => setModal(true)}><Icon name="plus" size={16} /> Nuevo pedido</Btn>} />
       <div style={{ display: "flex", gap: "8px", marginBottom: "16px", flexWrap: "wrap" }}>
-        {["todos", "bot", ...ESTADO_LABELS].map(e => (
-          <button key={e} onClick={() => setFiltro(e)} style={{ background: filtro === e ? "#0066FF" : "rgba(255,255,255,0.07)", color: filtro === e ? "#fff" : "#9ca3af", border: "none", borderRadius: "100px", padding: "6px 14px", fontSize: "12px", fontWeight: 600, cursor: "pointer", textTransform: "capitalize" }}>{e === "bot" ? "🤖 del bot" : e}</button>
+        {["todos", "bot", "web", ...ESTADO_LABELS].map(e => (
+          <button key={e} onClick={() => setFiltro(e)} style={{ background: filtro === e ? "#0066FF" : "rgba(255,255,255,0.07)", color: filtro === e ? "#fff" : "#9ca3af", border: "none", borderRadius: "100px", padding: "6px 14px", fontSize: "12px", fontWeight: 600, cursor: "pointer", textTransform: "capitalize" }}>{e === "bot" ? "🤖 del bot" : e === "web" ? "🛒 del catálogo" : e}</button>
         ))}
       </div>
 
@@ -305,11 +310,18 @@ const Pedidos = ({ pedidos, productos, accion, ajustes }) => {
             <div style={{ flex: 1, minWidth: "180px" }}>
               <div style={{ color: "#fff", fontWeight: 700, fontSize: "14px", display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
                 {p.origen === "bot" && <span title="Venta cerrada por el bot">🤖</span>}
+                {p.origen === "catalogo" && <span title="Compra hecha desde el carrito del catálogo">🛒</span>}
                 {p.cliente || fmtTel(p.telefono)}
                 {p.telefono && <a href={waLink(p.telefono)} target="_blank" rel="noreferrer" style={{ color: "#10b981", display: "flex" }}><Icon name="wa" size={14} /></a>}
               </div>
               <div style={{ color: "#9ca3af", fontSize: "13px", marginTop: "2px" }}>{p.cantidad > 1 ? `${p.cantidad}x ` : ""}{p.producto}{!p.producto_id && p.origen === "bot" && <> <Badge color="#f59e0b">sin vincular al stock</Badge></>}</div>
-              <div style={{ color: "#6b7280", fontSize: "12px", marginTop: "2px" }}>{[p.canal, fmtDate(p.fecha), p.entrega, p.pago].filter(Boolean).join(" · ")}</div>
+              <div style={{ color: "#6b7280", fontSize: "12px", marginTop: "2px" }}>{[p.compra, p.canal, fmtDate(p.fecha), p.entrega, p.pago].filter(Boolean).join(" · ")}</div>
+              {PAGO_WEB[p.pago_estado] && (
+                <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap", marginTop: "5px" }}>
+                  <Badge color={PAGO_WEB[p.pago_estado][0]}>{PAGO_WEB[p.pago_estado][1]}</Badge>
+                  {["a_confirmar", "link"].includes(p.pago_estado) && p.estado !== "cancelado" && <button onClick={() => marcarPagado(p)} style={{ background: "rgba(16,185,129,0.15)", color: "#34d399", border: "1px solid rgba(16,185,129,0.4)", borderRadius: "100px", padding: "3px 10px", fontSize: "11px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>✓ Pago recibido</button>}
+                </div>
+              )}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
               <div style={{ textAlign: "right" }}><div style={{ color: "#10b981", fontWeight: 800, fontSize: "15px" }}>{fmt(p.monto)}</div>{tieneCosto(p) && <div style={{ color: "#6b7280", fontSize: "11px" }}>ganás {fmt(Number(p.monto) - Number(p.costo))}</div>}</div>

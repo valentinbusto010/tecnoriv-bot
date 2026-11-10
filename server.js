@@ -251,6 +251,14 @@ app.use('/app', express.static(path.join(__dirname, 'public', 'app'), { maxAge: 
 app.use('/api/gestion', gestion.router(chequearClave, explicarError));
 
 // Catálogo público para clientes (sin contraseña): productos y precios en vivo
+// Link corto al WhatsApp del bot para la bio de Instagram, Facebook y anuncios: tecnoriv-bot.onrender.com/wa
+// Redirige a wa.me con el mensaje ya escrito y bien codificado (Instagram rompe los %20 si se pega el link de wa.me con texto).
+// Opcional: /wa?t=Texto propio
+app.get('/wa', (req, res) => {
+  const num = '549' + require('./src/negocio').whatsapp.replace(/\D/g, '');
+  const texto = String(req.query.t || '¡Hola! Quiero ver los productos y la promo 🙌').slice(0, 300);
+  res.redirect(302, `https://wa.me/${num}?text=${encodeURIComponent(texto)}`);
+});
 app.get('/catalogo', (req, res) => res.sendFile(path.join(__dirname, 'public', 'catalogo.html')));
 app.get('/catalogo.js', (req, res) => res.sendFile(path.join(__dirname, 'public', 'catalogo.js')));
 app.get('/api/catalogo', catalogo.api);

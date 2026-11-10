@@ -1,4 +1,5 @@
-// ESTUDIO IA de /contenido: crear y editar imágenes con Nano Banana (Google Gemini).
+// ESTUDIO IA de /contenido: crear y editar imágenes con IA.
+// Dos motores: "gratis" (Cloudflare Workers AI · FLUX.2) y "pro" (Nano Banana Pro, Google Gemini, pago).
 // Usa la misma API que la skill "imagen" (generativelanguage.googleapis.com) con GEMINI_API_KEY.
 // Modelo: Nano Banana Pro (gemini-3-pro-image-preview). Si la cuenta no tiene cuota para Pro,
 // prueba solo con Nano Banana (gemini-2.5-flash-image), que es más barato.
@@ -6,9 +7,10 @@ const express = require('express');
 const axios = require('axios');
 const sharp = require('sharp');
 const { supabase } = require('./datos');
+const { responderChat } = require('./claude');
 
 const MODELOS = () => [...new Set([process.env.GEMINI_MODELO_IMAGEN || 'gemini-3-pro-image-preview', 'gemini-2.5-flash-image'])];
-const NOMBRE = { 'gemini-3-pro-image-preview': 'Nano Banana Pro', 'gemini-2.5-flash-image': 'Nano Banana' };
+const NOMBRE = { 'gemini-3-pro-image-preview': 'Nano Banana Pro', 'gemini-2.5-flash-image': 'Nano Banana', 'flux-2-klein-4b': 'FLUX.2 (gratis)', 'flux-2-klein-9b': 'FLUX.2 9B (gratis)', 'flux-2-dev': 'FLUX.2 Dev (gratis)' };
 const FORMATOS = { '4:5': 'post', '9:16': 'historia/reel', '1:1': 'cuadrada', '16:9': 'horizontal' };
 
 // Estilo de la marca, opcional, para que todo se vea de la misma familia.
@@ -70,6 +72,62 @@ async function generar({ prompt, referencias = [], formato = '4:5', tamano = '2K
   throw Object.assign(new Error(ultimoError?.sinImagen ? ultimoError.message : explicarErrorGemini(ultimoError || {})), { status: 400 });
 }
 
+// ── MOTOR GRATIS: Cloudflare Workers AI con FLUX.2 (10.000 neurons gratis por día, ~50 imágenes) ──
+// Variables en Render: CF_ACCOUNT_ID y CF_API_TOKEN (token con permiso "Workers AI").
+const CF_MODELO = () => process.env.CF_MODELO_IMAGEN || 'flux-2-klein-4b';
+const cfListo = () => Boolean(process.env.CF_ACCOUNT_ID && process.env.CF_API_TOKEN);
+const MEDIDAS = { '4:5': [1024, 1280], '9:16': [1024, 1824], '1:1': [1024, 1024], '16:9': [1824, 1024] };
+const ESTILO_EN = 'Professional realistic product photography, studio lighting, elegant dark background with blue light accents (#1EB6FF), premium tech aesthetic, sharp, no added text, no watermark.';
+
+// FLUX entiende mejor inglés: Claude pasa el pedido a un prompt en inglés (si falla, va tal cual).
+async function aIngles(texto, { editar, refs }) {
+  if (!process.env.CLAUDE_API_KEY) return texto;
+  try {
+    const t = await responderChat(
+      `Convertís pedidos de imágenes en español a UN prompt en inglés para FLUX.2 (modelo de imágenes). Devolvé solo el prompt, sin comillas ni explicaciones, máximo 80 palabras.${refs ? ` Hay ${refs} foto(s) de referencia del producto real: nombralas "image 0", "image 1"… y pedí mantener el producto idéntico (forma, colores, logos).` : ''}${editar ? ' Es una EDICIÓN de image 0: describí solo el cambio y que el resto (sobre todo el producto) quede igual.' : ''}`,
+      [{ role: 'user', content: texto }],
+    );
+    return t || texto;
+  } catch { return texto; }
+}
+
+function explicarErrorCF(status, msg = '') {
+  if (status === 401 || status === 403 || /authentication|unauthorized|invalid.*token/i.test(msg)) return 'El token de Cloudflare no es válido o no tiene permiso "Workers AI". Revisá CF_API_TOKEN y CF_ACCOUNT_ID en Render.';
+  if (status === 429 || /neuron|daily|limit|quota|capacity/i.test(msg)) return 'Se terminó el cupo gratis de hoy en Cloudflare. Se renueva todos los días a las 21:00 (hora Argentina).';
+  if (/nsfw|safety|flagged/i.test(msg)) return 'Cloudflare bloqueó el pedido por sus políticas. Probá describirlo de otra forma.';
+  return `Cloudflare: ${msg || 'error ' + status}`;
+}
+
+async function generarGratis({ prompt, referencias = [], formato = '4:5', estilo = true, editar = false }) {
+  if (!cfListo()) throw Object.assign(new Error('Falta conectar Cloudflare: cargá CF_ACCOUNT_ID y CF_API_TOKEN en Render.'), { status: 400 });
+  const refs = [];
+  for (const r of referencias.slice(0, 4)) {
+    const buf = /^data:image\//.test(r) ? Buffer.from(r.split(',')[1], 'base64') : Buffer.from((await axios.get(r, { responseType: 'arraybuffer', timeout: 30000 })).data);
+    refs.push(await sharp(buf).rotate().resize(511, 511, { fit: 'inside' }).png().toBuffer()); // el modelo pide < 512x512
+  }
+  const en = await aIngles(prompt, { editar, refs: refs.length });
+  const texto = `${en}${estilo && !editar ? ' ' + ESTILO_EN : ''}`;
+  const [w, h] = MEDIDAS[formato] || MEDIDAS['4:5'];
+  const form = new FormData();
+  form.append('prompt', texto.slice(0, 2000));
+  form.append('width', String(w));
+  form.append('height', String(h));
+  refs.forEach((b, i) => form.append(`input_image_${i}`, new Blob([b], { type: 'image/png' }), `ref${i}.png`));
+  const modelo = CF_MODELO();
+  const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${process.env.CF_ACCOUNT_ID}/ai/run/@cf/black-forest-labs/${modelo}`, {
+    method: 'POST', headers: { Authorization: `Bearer ${process.env.CF_API_TOKEN}` }, body: form, signal: AbortSignal.timeout(180000),
+  });
+  const txt = await res.text();
+  let data = {};
+  try { data = JSON.parse(txt); } catch { /* respuesta no JSON */ }
+  const msg = (data.errors || []).map((e) => e.message).join(' ') || (!res.ok ? txt.slice(0, 200) : '');
+  if (!res.ok || !data.result?.image) {
+    console.error('Cloudflare', modelo, res.status, msg);
+    throw Object.assign(new Error(explicarErrorCF(res.status, msg)), { status: 400 });
+  }
+  return { buffer: Buffer.from(data.result.image, 'base64'), modelo, nota: en !== prompt ? `Prompt usado: ${en}`.slice(0, 300) : '' };
+}
+
 async function guardarEnHistorial({ buffer, tipo, prompt, modelo, formato, producto_id }) {
   const jpg = await sharp(buffer).jpeg({ quality: 90, mozjpeg: true }).toBuffer();
   const ruta = `ia/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
@@ -84,7 +142,7 @@ async function guardarEnHistorial({ buffer, tipo, prompt, modelo, formato, produ
 function router() {
   const r = express.Router();
 
-  r.get('/estado', (req, res) => res.json({ gemini: Boolean(process.env.GEMINI_API_KEY), modelos: MODELOS().map((m) => ({ id: m, nombre: NOMBRE[m] || m })), formatos: FORMATOS }));
+  r.get('/estado', (req, res) => res.json({ gemini: Boolean(process.env.GEMINI_API_KEY), gratis: cfListo(), modelos: MODELOS().map((m) => ({ id: m, nombre: NOMBRE[m] || m })), formatos: FORMATOS }));
 
   r.get('/historial', async (req, res) => {
     const { data, error } = await supabase.from('ia_imagenes').select('*').order('created_at', { ascending: false }).limit(60);
@@ -94,12 +152,14 @@ function router() {
 
   // { prompt, referencias: [url|dataURL], formato, tamano, estilo, editar, producto_id }
   r.post('/imagen', async (req, res) => {
-    const { prompt = '', referencias = [], formato = '4:5', tamano = '2K', estilo = true, editar = false, producto_id = null } = req.body || {};
+    const { prompt = '', referencias = [], formato = '4:5', tamano = '2K', estilo = true, editar = false, producto_id = null, motor = 'pro' } = req.body || {};
     if (!String(prompt).trim()) return res.status(400).json({ error: 'Escribí qué querés generar' });
     if (editar && !referencias.length) return res.status(400).json({ error: 'Elegí la imagen a editar' });
     if (!FORMATOS[formato]) return res.status(400).json({ error: 'Formato inválido' });
     try {
-      const g = await generar({ prompt: String(prompt).slice(0, 2000), referencias, formato, tamano: ['1K', '2K', '4K'].includes(tamano) ? tamano : '2K', estilo, editar });
+      const g = motor === 'gratis'
+        ? await generarGratis({ prompt: String(prompt).slice(0, 2000), referencias, formato, estilo, editar })
+        : await generar({ prompt: String(prompt).slice(0, 2000), referencias, formato, tamano: ['1K', '2K', '4K'].includes(tamano) ? tamano : '2K', estilo, editar });
       const fila = await guardarEnHistorial({ buffer: g.buffer, tipo: editar ? 'editar' : 'crear', prompt, modelo: g.modelo, formato, producto_id });
       res.json({ ...fila, modelo_nombre: NOMBRE[g.modelo] || g.modelo, nota: g.nota });
     } catch (e) {
@@ -133,4 +193,4 @@ function router() {
   return r;
 }
 
-module.exports = { router, generar };
+module.exports = { router, generar, generarGratis };

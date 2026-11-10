@@ -672,7 +672,7 @@ const Detalle = ({ id, datos, onClose, onCambio }) => {
   );
 };
 
-// ─── ESTUDIO IA: crear y editar imágenes con Nano Banana (Gemini) ─────────────
+// ─── ESTUDIO IA: crear y editar imágenes (gratis con FLUX.2 de Cloudflare o Pro con Nano Banana) ───
 const FORMATOS_IA = [["4:5", "Post"], ["9:16", "Historia / Reel"], ["1:1", "Cuadrada"], ["16:9", "Horizontal"]];
 const IDEAS_CREAR = [
   "Foto de producto sobre una mesa de madera clara con luz natural de ventana",
@@ -739,6 +739,7 @@ function VideosRemotion({ datos }) {
 function EstudioIA({ datos }) {
   const [modo, setModo] = useState("crear");
   const [estado, setEstado] = useState(null);
+  const [motor, setMotor] = useState(() => { try { return localStorage.getItem("trMotorIA") || ""; } catch { return ""; } });
   const [hist, setHist] = useState([]);
   const [prompt, setPrompt] = useState("");
   const [formato, setFormato] = useState("4:5");
@@ -754,7 +755,11 @@ function EstudioIA({ datos }) {
   const nombres = Object.fromEntries(productos.map(x => [x.id, x.nombre]));
 
   const cargarHist = useCallback(() => api("/ia/historial").then(setHist).catch(e => setError(e.message)), []);
-  useEffect(() => { api("/ia/estado").then(setEstado).catch(() => setEstado({ gemini: false })); cargarHist(); }, [cargarHist]);
+  useEffect(() => { api("/ia/estado").then(setEstado).catch(() => setEstado({ gemini: false, gratis: false })); cargarHist(); }, [cargarHist]);
+  // Motor por defecto: el gratis si está conectado.
+  const motorReal = motor || (estado?.gratis || !estado?.gemini ? "gratis" : "pro");
+  const elegirMotor = (m) => { setMotor(m); try { localStorage.setItem("trMotorIA", m); } catch {} };
+  const motorListo = !estado || (motorReal === "gratis" ? estado.gratis : estado.gemini);
 
   const cambiarModo = (m, base) => { setModo(m); setResultado(null); setError(""); setRefs(base ? [base] : []); setPrompt(""); window.scrollTo(0, 0); };
   const subirBase = async (e) => {
@@ -765,7 +770,7 @@ function EstudioIA({ datos }) {
   const generar = async () => {
     setError(""); setGenerando(true); setResultado(null);
     try {
-      const r = await api("/ia/imagen", "POST", { prompt, referencias: refs, formato, tamano, estilo, editar: modo === "editar", producto_id: pid ? Number(pid) : null });
+      const r = await api("/ia/imagen", "POST", { prompt, referencias: refs, formato, tamano, estilo, editar: modo === "editar", producto_id: pid ? Number(pid) : null, motor: motorReal });
       setResultado(r); cargarHist();
     } catch (e) { setError(e.message); } finally { setGenerando(false); }
   };
@@ -780,12 +785,25 @@ function EstudioIA({ datos }) {
 
   return (
     <div>
-      <Header kicker="Nano Banana Pro · Google Gemini" title="Estudio IA" />
+      <Header kicker={motorReal === "gratis" ? "FLUX.2 · Cloudflare (gratis)" : "Nano Banana Pro · Google Gemini"} title="Estudio IA" />
       <div style={{ display: "flex", gap: "8px", marginBottom: "16px", flexWrap: "wrap" }}>
         {sub("crear", "✨ Crear imagen")}{sub("editar", "🪄 Editar con IA")}{sub("videos", "🎬 Videos")}
       </div>
 
-      {estado && !estado.gemini && modo !== "videos" && (
+      {modo !== "videos" && (
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center", marginBottom: "16px" }}>
+          <span style={{ color: "#9ca3af", fontSize: "12px", fontWeight: 600 }}>MOTOR</span>
+          <button onClick={() => elegirMotor("gratis")} style={chipSt(motorReal === "gratis")}>🆓 Gratis · FLUX.2{estado && !estado.gratis ? " (sin conectar)" : ""}</button>
+          <button onClick={() => elegirMotor("pro")} style={chipSt(motorReal === "pro")}>⭐ Pro · Nano Banana{estado && !estado.gemini ? " (sin conectar)" : ""}</button>
+        </div>
+      )}
+
+      {estado && motorReal === "gratis" && !estado.gratis && modo !== "videos" && (
+        <div style={{ ...card, padding: "14px", marginBottom: "16px", borderColor: "#f59e0b55", color: "#fcd34d", fontSize: "13px", lineHeight: 1.6 }}>
+          <b>Falta conectar Cloudflare (gratis).</b> 1) Creá una cuenta en <b>dash.cloudflare.com</b> y copiá el <b>Account ID</b>. 2) My Profile → API Tokens → Create Token → plantilla <b>Workers AI</b>. 3) En Render → Environment agregá <code>CF_ACCOUNT_ID</code> y <code>CF_API_TOKEN</code> y guardá.
+        </div>
+      )}
+      {estado && motorReal === "pro" && !estado.gemini && modo !== "videos" && (
         <div style={{ ...card, padding: "14px", marginBottom: "16px", borderColor: "#f59e0b55", color: "#fcd34d", fontSize: "13px", lineHeight: 1.6 }}>
           <b>Falta conectar Gemini.</b> 1) Entrá a <b>aistudio.google.com</b> → <b>Get API key</b> → Crear clave. 2) Para Nano Banana Pro activá la facturación del proyecto. 3) En Render → Environment agregá <code>GEMINI_API_KEY</code> con esa clave y guardá. En 2-3 minutos queda andando.
         </div>
@@ -830,19 +848,19 @@ function EstudioIA({ datos }) {
               {FORMATOS_IA.map(([f, l]) => <button key={f} onClick={() => setFormato(f)} style={chipSt(formato === f)}>{l} · {f}</button>)}
             </div>
             <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", alignItems: "center", marginBottom: "14px" }}>
-              <span style={{ display: "flex", gap: "6px", alignItems: "center" }}><span style={{ color: "#9ca3af", fontSize: "12px" }}>Calidad</span>
-                {["1K", "2K", "4K"].map(t => <button key={t} onClick={() => setTamano(t)} style={{ ...chipSt(tamano === t), padding: "4px 10px" }}>{t}</button>)}</span>
+              {motorReal === "pro" && <span style={{ display: "flex", gap: "6px", alignItems: "center" }}><span style={{ color: "#9ca3af", fontSize: "12px" }}>Calidad</span>
+                {["1K", "2K", "4K"].map(t => <button key={t} onClick={() => setTamano(t)} style={{ ...chipSt(tamano === t), padding: "4px 10px" }}>{t}</button>)}</span>}
               {modo === "crear" && <label style={{ display: "flex", gap: "6px", alignItems: "center", color: "#d1d5db", fontSize: "13px", cursor: "pointer" }}><input type="checkbox" checked={estilo} onChange={e => setEstilo(e.target.checked)} /> Estilo Tecno Riv</label>}
             </div>
-            <Btn onClick={generar} disabled={generando || !prompt.trim() || (modo === "editar" && !refs.length) || (estado && !estado.gemini)} style={{ width: "100%", justifyContent: "center" }}>
-              {generando ? "Generando… (20-60 s)" : modo === "editar" ? "🪄 Editar imagen" : "✨ Crear imagen"}
+            <Btn onClick={generar} disabled={generando || !prompt.trim() || (modo === "editar" && !refs.length) || !motorListo} style={{ width: "100%", justifyContent: "center" }}>
+              {generando ? (motorReal === "gratis" ? "Generando… (10-30 s)" : "Generando… (20-60 s)") : modo === "editar" ? "🪄 Editar imagen" : "✨ Crear imagen"}
             </Btn>
-            <div style={{ color: "#6b7280", fontSize: "11px", marginTop: "8px" }}>Cada imagen consume tu cuota de Gemini (4K cuesta más). Todo lo que generes queda en el historial.</div>
+            <div style={{ color: "#6b7280", fontSize: "11px", marginTop: "8px" }}>{motorReal === "gratis" ? "Gratis: ~50 imágenes por día (se renueva a las 21:00). Con fotos de referencia respeta mejor tu producto. Para piezas clave usá Pro." : "Cada imagen consume tu cuota de Gemini (4K cuesta más)."} Todo lo que generes queda en el historial.</div>
             {error && <div style={{ color: "#fca5a5", fontSize: "13px", marginTop: "10px" }}>{error}</div>}
           </div>
 
           <div>
-            {generando && <div style={{ ...card, padding: "40px", textAlign: "center", color: "#9ca3af" }}><div className="tr-ia-gen" style={{ fontSize: "34px", marginBottom: "8px" }}>✨</div>Nano Banana está creando tu imagen…</div>}
+            {generando && <div style={{ ...card, padding: "40px", textAlign: "center", color: "#9ca3af" }}><div className="tr-ia-gen" style={{ fontSize: "34px", marginBottom: "8px" }}>✨</div>{motorReal === "gratis" ? "FLUX.2" : "Nano Banana"} está creando tu imagen…</div>}
             {resultado && !generando && <ResultadoIA im={resultado} productos={productos} onEditar={u => cambiarModo("editar", u)} onCambio={cargarHist} />}
             {!resultado && !generando && <div style={{ ...card, padding: "30px", textAlign: "center", color: "#6b7280", fontSize: "13px" }}>Acá aparece tu imagen.</div>}
           </div>

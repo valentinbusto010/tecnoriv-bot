@@ -19,7 +19,7 @@ const haceDias = (n) => new Date(Date.now() - n * 864e5).toISOString();
 const fmt = (n) => '$' + Math.round(Number(n) || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 const fechaCorta = (dia) => { const [, m, d] = dia.split('-'); return `${Number(d)}/${Number(m)}`; };
 
-const PLANTILLAS = { seguimiento: 'tr_seguimiento', recompra: 'tr_recompra', resumen: 'tr_resumen', aviso: 'tr_aviso' };
+const PLANTILLAS = { seguimiento: 'tr_seguimiento', recompra: 'tr_recompra', reactivar: 'tr_reactivar', resumen: 'tr_resumen', aviso: 'tr_aviso' };
 const DEFECTO = { postventa_activa: 1, dias_seguimiento: 3, dias_recompra: 35, recompra_descuento: 10, resumen_activo: 1, resumen_hora: 8 };
 // Claves internas en "ajustes" (no se muestran como ajustes en /gestion)
 const INTERNAS = ['resumen_ultimo', 'resumen_texto', 'dueno_ultimo'];
@@ -45,8 +45,9 @@ function telInternacional(t) {
 const variantes = (tel) => { const d = tel.slice(3); return [tel, '54' + d, d]; };
 
 const primerNombre = (n) => {
-  const x = String(n || '').trim().split(/\s+/)[0] || '';
-  return /^\+?\d/.test(x) ? '' : x.charAt(0).toUpperCase() + x.slice(1).toLowerCase();
+  // Solo letras: "cArLiLi🖤" -> "Carlili", ".." o un teléfono -> "" (queda "Hola!").
+  const x = (String(n || '').trim().split(/\s+/)[0] || '').replace(/[^\p{L}'-]/gu, '');
+  return x.length < 2 ? '' : x.charAt(0).toUpperCase() + x.slice(1).toLowerCase();
 };
 
 // ¿La persona nos escribió en las últimas 24 h? (entonces se puede mandar texto libre)
@@ -143,6 +144,43 @@ async function correrSeguimientos(cfg, max = 10) {
     if (r.ok) enviados++;
   }
   return enviados;
+}
+
+// ───────── REACTIVAR: gente que consultó y no compró ─────────
+// Busca contactos que escribieron en los últimos `dias` días, no tienen pedidos, no pidieron BAJA y no recibieron
+// este mensaje en la última semana. Con `simular` solo devuelve la lista sin mandar nada.
+async function correrReactivacion({ dias = 7, mensaje, simular = false, max = 30 } = {}) {
+  mensaje = String(mensaje || '').trim().replace(/[.!]+$/, '');
+  if (!mensaje) throw new Error('Falta el mensaje (ej: "hoy es el último día del 20% OFF").');
+  const dueno = telInternacional(process.env.OWNER_PHONE);
+  const [{ data: clientes }, { data: pedidos }, { data: yaEnviados }] = await Promise.all([
+    supabase.from('clientes').select('id, nombre, telefono, no_contactar, ultimo_contacto').gte('ultimo_contacto', haceDias(dias)),
+    supabase.from('pedidos').select('cliente_id, telefono').neq('estado', 'cancelado'),
+    supabase.from('mensajes_auto').select('telefono').eq('tipo', 'reactivar').eq('estado', 'enviado').gte('created_at', haceDias(7)),
+  ]);
+  const compraron = new Set();
+  for (const p of pedidos || []) { if (p.cliente_id) compraron.add('id' + p.cliente_id); const t = telInternacional(p.telefono); if (t) compraron.add(t); }
+  const enviado = new Set((yaEnviados || []).map((m) => telInternacional(m.telefono)));
+  // Un mismo teléfono puede estar cargado dos veces (bot + panel): si alguna de sus fichas compró, no se le escribe.
+  for (const c of clientes || []) { const t = telInternacional(c.telefono); if (t && compraron.has('id' + c.id)) compraron.add(t); }
+  const vistos = new Set();
+  const lista = [];
+  for (const c of clientes || []) {
+    const tel = telInternacional(c.telefono);
+    if (!tel || tel === dueno || vistos.has(tel)) continue;
+    vistos.add(tel);
+    if (c.no_contactar || compraron.has('id' + c.id) || compraron.has(tel) || enviado.has(tel)) continue;
+    lista.push({ tel, nombre: c.nombre });
+  }
+  const resultados = [];
+  for (const c of lista.slice(0, max)) {
+    const nombre = primerNombre(c.nombre);
+    const texto = `Hola${nombre ? ' ' + nombre : ''}! Te escribimos de ${negocio.nombre} 👋 Hace unos días nos consultaste y queríamos contarte que ${mensaje}. ¿Te reservamos el que estabas mirando? Respondé este mensaje.`;
+    if (simular) { resultados.push({ cliente: c.nombre, telefono: c.tel, texto }); continue; }
+    const r = await mandar({ tipo: 'reactivar', tel: c.tel, cliente: c.nombre, texto, params: [nombre || 'qué tal', mensaje] });
+    resultados.push({ cliente: c.nombre, telefono: c.tel, ...r });
+  }
+  return { total: lista.length, enviados: resultados.filter((r) => r.ok).length, resultados };
 }
 
 async function correrRecompras(cfg, max = 10) {
@@ -393,6 +431,14 @@ function router(chequearClave, explicarError = (e) => e.message) {
     });
   });
 
+  // POST /api/auto/reactivar { mensaje, dias?, simular? }
+  r.post('/reactivar', async (req, res) => {
+    try {
+      const { mensaje, dias, simular } = req.body || {};
+      res.json(await correrReactivacion({ mensaje, dias: Number(dias) || 7, simular: Boolean(simular) }));
+    } catch (e) { res.status(400).json({ error: explicarError(e) }); }
+  });
+
   r.get('/resumen', async (req, res) => {
     try { res.json(await armarResumen()); } catch (e) { res.status(500).json({ error: explicarError(e) }); }
   });
@@ -409,5 +455,5 @@ function router(chequearClave, explicarError = (e) => e.message) {
 
 module.exports = {
   iniciar, router, tick, procesarBaja, registrarEstado, contextoCliente, beneficioDe, duenoEscribio, ultimoResumen, avisarDueno,
-  armarResumen, elegirComplemento, telInternacional, correrSeguimientos, correrRecompras, INTERNAS,
+  armarResumen, elegirComplemento, telInternacional, correrSeguimientos, correrRecompras, correrReactivacion, INTERNAS,
 };

@@ -14,6 +14,12 @@ module.exports = [
     example: ['Juan', 'Smartwatch D20', 'Malla para smartwatch a $3.149 (antes $3.499)', '10', '12/11'],
   },
   {
+    name: 'tr_reactivar',
+    category: 'MARKETING',
+    text: 'Hola {{1}}! Te escribimos de Tecno Riv 👋 Hace unos días nos consultaste y queríamos contarte que {{2}}. ¿Te reservamos el que estabas mirando? Respondé este mensaje. Si no querés recibir más ofertas, respondé BAJA.',
+    example: ['Juli', 'hoy es el último día del 20% OFF con regalo'],
+  },
+  {
     name: 'tr_resumen',
     category: 'UTILITY',
     text: 'Buen día! Tu resumen de Tecno Riv: {{1}}. Respondé HOY para ver el detalle completo.',

@@ -13,7 +13,15 @@ module.exports = {
   retiro: 'Pasaje Público 2206, Banda Norte (barrio 130 Viviendas), Río Cuarto',
   // Datos para transferencias. El cliente paga cuando recibe el producto.
   transferencia: { alias: 'valentinbusto04', titular: 'Leandro Valentín Busto', banco: 'Mercado Pago' },
-  garantia: 'Garantía de 30 días',
+  garantia: 'Garantía de 30 días por fallas de fábrica',
+  // Cambios: solo por falla, dentro de la garantía.
+  cambios: 'Hacemos cambios solo por falla, dentro de los 30 días de garantía. El producto no tiene que estar rayado ni golpeado. No hay cambios por gusto o arrepentimiento',
+  // Info que vale para todos los productos de una categoría (el detalle de cada uno va en el catálogo).
+  infoProductos: [
+    'Smartwatches (todos los modelos): funcionan con iPhone y Android, se usan con la app FitPro, vienen con malla incluida en la caja y son resistentes al sudor y a salpicaduras, pero NO son sumergibles (no sirven para nadar ni bañarse).',
+    'Mallas e hidrogel para smartwatch: sirven para la mayoría de los relojes con pantalla de 2". Si el cliente tiene otra marca o modelo, preguntale la medida de la pantalla.',
+    'Duración de batería: no tenemos un dato confirmado; no inventes horas ni días. Si preguntan, decí que depende del uso (brillo, notificaciones, llamadas) y que con todo activado conviene cargarlo a diario.',
+  ],
   // Descuento pagando en efectivo (%). Se aplica sobre el precio que ve el cliente (incluida la promo, si hay).
   // Lo usan el catálogo, el bot y el registro de ventas. Poné 0 para sacarlo.
   descuentoEfectivo: 10,

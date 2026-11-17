@@ -6,7 +6,11 @@ module.exports = {
   web: '', // ej: https://tecnoriv.com.ar
   whatsapp: '358 517-8319', // número del bot: se muestra en la descripción de Marketplace
   mediosDePago: 'Todos los medios de pago: efectivo, transferencia, Mercado Pago y tarjetas de débito y crédito. Por ahora no hay cuotas sin interés',
-  envios: 'Envío gratis dentro de Río Cuarto o retiro a coordinar por WhatsApp. No hacemos envíos a otras ciudades',
+  envios: 'Envío gratis dentro de Río Cuarto y a Las Higueras. A Holmberg el envío cuesta $3.000. No hacemos envíos a otras ciudades',
+  // Entregas a domicilio: salen a partir de las 17:30. Pedido hasta las 20 hs = se entrega ese mismo día; después, al día siguiente.
+  entregas: 'Las entregas a domicilio salen a partir de las 17:30 hs. Los pedidos confirmados hasta las 20 hs se entregan ese mismo día; los que llegan después, al día siguiente',
+  // Punto de retiro: el bot lo puede dar cuando el cliente quiere retirar.
+  retiro: 'Pasaje Público 2206, Banda Norte (barrio 130 Viviendas), Río Cuarto',
   // Datos para transferencias. El cliente paga cuando recibe el producto.
   transferencia: { alias: 'valentinbusto04', titular: 'Leandro Valentín Busto', banco: 'Mercado Pago' },
   garantia: 'Garantía de 30 días',

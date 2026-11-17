@@ -57,6 +57,19 @@ async function mandarCatalogos(to) {
 }
 const AVISO_OTRO = 'Por ahora solo puedo leer mensajes de texto y fotos. ¿Me escribís tu consulta? 🙌';
 
+// Si el cliente manda varios mensajes seguidos ("hola" + "una consulta", "a qué hora?" + "?"), se espera unos
+// segundos y se responden juntos, en vez de contestar dos veces lo mismo. Devuelve null al mensaje que quedó absorbido.
+const ESPERA_MS = Number(process.env.ESPERA_MENSAJES_MS || 4000);
+const esperas = new Map();
+function juntarMensajes(from, texto) {
+  return new Promise((resolve) => {
+    const prev = esperas.get(from);
+    if (prev) { clearTimeout(prev.timer); prev.resolve(null); }
+    const textos = [...(prev?.textos || []), texto];
+    esperas.set(from, { textos, resolve, timer: setTimeout(() => { esperas.delete(from); resolve(textos.join('\n')); }, ESPERA_MS) });
+  });
+}
+
 // Texto libre si el dueño escribió en las últimas 23 h; si no, plantilla tr_aviso (ver src/postventa.js).
 // Convierte el carrito de WhatsApp en un texto que entiende el bot de ventas.
 async function textoPedidoCatalogo(order = {}) {
@@ -127,6 +140,9 @@ app.post('/webhook', async (req, res) => {
       }
     }
 
+    // Reacciones (❤️, 👍 sobre un mensaje): no hace falta contestar.
+    if (message.type === 'reaction') return;
+
     // Audios, stickers, ubicaciones, etc.: respuesta fija, sin gastar IA.
     if (!['text', 'image', 'order'].includes(message.type)) {
       console.log(`Mensaje de ${from}: [${message.type}]`);
@@ -151,7 +167,8 @@ app.post('/webhook', async (req, res) => {
         console.error('No se pudo descargar la foto:', e.response?.data?.error?.message || e.message);
       }
     } else {
-      text = message.text.body.trim();
+      text = await juntarMensajes(from, message.text.body.trim());
+      if (text === null) return; // se responde junto con el mensaje que llegó después
     }
     console.log(`Mensaje de ${from}: ${text}`);
 
@@ -161,7 +178,7 @@ app.post('/webhook', async (req, res) => {
     const extra = (await postventa.contextoCliente(from).catch(() => '')) +
       (await checkout.contextoCliente(from, text).catch(() => '')) +
       (conocido ? `\nCÓMO NOS CONOCIÓ: ya lo sabemos (${conocido}), no lo preguntes.` : '');
-    const { texto, ventas, humano, fotos, origen, catalogo: verCatalogo } = await responderCliente([...historial, { role: 'user', content: text }], imagen, extra);
+    const { texto, nada, ventas, humano, fotos, origen, catalogo: verCatalogo } = await responderCliente([...historial, { role: 'user', content: text }], imagen, extra);
 
     const enviadas = [];
     for (const foto of fotos) {
@@ -169,6 +186,10 @@ app.post('/webhook', async (req, res) => {
         () => enviadas.push(foto.nombre),
         (e) => console.error('No se pudo mandar la foto:', e.response?.data?.error?.message || e.message)
       );
+    }
+    if (nada && !fotos.length) {
+      console.log(`Sin respuesta para ${from} (la charla ya estaba cerrada)`);
+      return;
     }
     await enviarWhatsApp(from, texto);
     let catalogoEnviado = false;

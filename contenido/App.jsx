@@ -451,7 +451,9 @@ const TIPOS_SLIDE = { portada: "Portada", texto: "Texto", lista: "Lista", produc
 
 // ─── EDITOR DE SLIDES: textos + foto de cada imagen ──────────────────────────
 // Qué slides llevan foto de fondo/producto.
-const llevaFoto = (s, formato) => ["portada", "producto", "comparativa"].includes(s.tipo) || (s.tipo === "texto" && Boolean(s.producto_id)) || (s.tipo === "cta" && formato === "historias");
+// Todas las slides aceptan una foto elegida a mano; en las de texto, lista y cierre va de fondo oscurecida.
+const llevaFoto = () => true;
+const fotoPropia = (s, formato) => ["portada", "producto", "comparativa"].includes(s.tipo) || (s.tipo === "texto" && Boolean(s.producto_id)) || (s.tipo === "cta" && formato === "historias");
 
 async function achicarImagen(file, lado = 1600) {
   const url = URL.createObjectURL(file);
@@ -474,6 +476,14 @@ function ElegirFoto({ productoIds, nombres, actual, onElegir, onClose }) {
   useEffect(() => { cargar(); }, [cargar]);
   const subir = async (e) => {
     const archivos = [...(e.target.files || [])]; e.target.value = "";
+    setError("");
+    // Publicación sin producto (tips, promo general): la foto se sube suelta y va directo a la slide.
+    if (!productoIds.length) {
+      if (!archivos[0]) return;
+      setSubiendo("Subiendo…");
+      try { const r = await api("/galeria/libre", "POST", { imagen: await achicarImagen(archivos[0]) }); setSubiendo(""); return onElegir(r.url); }
+      catch (err) { setSubiendo(""); return setError(err.message); }
+    }
     if (!filtro) return setError("Elegí primero de qué producto es la foto");
     let ultima = null;
     for (let i = 0; i < archivos.length; i++) {
@@ -500,7 +510,7 @@ function ElegirFoto({ productoIds, nombres, actual, onElegir, onClose }) {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: "8px" }}>
             <label style={{ aspectRatio: "3/4", borderRadius: "10px", border: "1.5px dashed rgba(96,165,250,0.5)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "4px", color: "#60a5fa", fontSize: "12px", fontWeight: 600, cursor: subiendo ? "default" : "pointer", textAlign: "center", padding: "6px" }}>
               <span style={{ fontSize: "22px" }}>+</span>{subiendo || "Subir foto"}
-              <input type="file" accept="image/*" multiple onChange={subir} disabled={Boolean(subiendo)} style={{ display: "none" }} />
+              <input type="file" accept="image/*" multiple={productoIds.length > 0} onChange={subir} disabled={Boolean(subiendo)} style={{ display: "none" }} />
             </label>
             {fotos === null && <div style={{ color: "#6b7280", fontSize: "13px", alignSelf: "center" }}>Cargando…</div>}
             {unicas.map(f => (
@@ -510,7 +520,7 @@ function ElegirFoto({ productoIds, nombres, actual, onElegir, onClose }) {
               </button>
             ))}
           </div>
-          {fotos && !unicas.length && <div style={{ color: "#6b7280", fontSize: "13px", marginTop: "10px" }}>Este producto no tiene fotos en la galería todavía. Subí una con el botón +.</div>}
+          {fotos && !unicas.length && <div style={{ color: "#6b7280", fontSize: "13px", marginTop: "10px" }}>{productoIds.length ? "Este producto no tiene fotos en la galería todavía. Subí una con el botón +." : "Esta publicación no es de un producto: subí la foto que quieras con el botón +."}</div>}
           {error && <div style={{ color: "#fca5a5", fontSize: "13px", marginTop: "10px" }}>{error}</div>}
         </div>
       </div>
@@ -543,7 +553,7 @@ function EditorSlides({ p, datos, ocupado, onCancelar, onRehacer, onSucio }) {
             {p.imagenes[i] && <img src={p.imagenes[i].imagen} alt="" style={{ width: "100%", borderRadius: "8px", display: "block" }} />}
             {llevaFoto(s, p.formato) && (
               <button onClick={() => setEligiendo(i)} style={{ marginTop: "6px", width: "100%", position: "relative", padding: 0, borderRadius: "8px", overflow: "hidden", cursor: "pointer", border: s.foto ? "2px solid #1EB6FF" : "1px dashed rgba(96,165,250,0.6)", background: "rgba(0,102,255,0.08)", color: "#60a5fa", fontSize: "11px", fontWeight: 700, fontFamily: "inherit" }}>
-                {s.foto ? <img src={s.foto} alt="" style={{ width: "100%", height: 54, objectFit: "cover", display: "block" }} /> : <div style={{ padding: "8px 4px" }}>📷 Cambiar foto</div>}
+                {s.foto ? <img src={s.foto} alt="" style={{ width: "100%", height: 54, objectFit: "cover", display: "block" }} /> : <div style={{ padding: "8px 4px" }}>📷 {fotoPropia(s, p.formato) ? "Cambiar foto" : "Agregar foto"}</div>}
                 {s.foto && <span style={{ position: "absolute", inset: "auto 0 0 0", background: "rgba(0,0,0,0.65)", color: "#fff", padding: "2px" }}>📷 Cambiar</span>}
               </button>
             )}

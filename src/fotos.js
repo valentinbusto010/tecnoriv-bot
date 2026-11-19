@@ -102,4 +102,6 @@ async function marcarUso(urls) {
 // Productos con la foto elegida en vez de la principal (para dibujar una pieza).
 const conFotos = (productos, fotos) => productos.map((p) => (fotos?.[p.id] ? { ...p, imagen_url: fotos[p.id] } : p));
 
-module.exports = { agregar, importar, elegir, elegirVarias, marcarUso, conFotos, preparar };
+const subirLibre = (buffer) => subir('libre', buffer);
+
+module.exports = { subirLibre, agregar, importar, elegir, elegirVarias, marcarUso, conFotos, preparar };

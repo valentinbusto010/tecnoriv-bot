@@ -290,6 +290,15 @@ function router(chequearClave, explicarError = (e) => e.message) {
     if (error) return res.status(500).json({ error: error.message });
     res.json(data);
   });
+  // POST /galeria/libre { imagen: dataURL } → foto suelta para una publicación sin producto (tips, promo general).
+  // No queda en la galería de ningún producto: solo devuelve la url para usarla en la slide.
+  r.post('/galeria/libre', async (req, res) => {
+    const img = String(req.body.imagen || '');
+    if (!/^data:image\/(png|jpeg|webp);base64,/.test(img)) return res.status(400).json({ error: 'Subí una imagen JPG, PNG o WEBP' });
+    try {
+      res.json({ url: await require('./fotos').subirLibre(Buffer.from(img.split(',')[1], 'base64')) });
+    } catch (e) { fallar(res, e); }
+  });
   // POST /galeria/:producto_id { imagen: dataURL } → sube una foto nueva a la galería del producto
   r.post('/galeria/:producto_id', async (req, res) => {
     const img = String(req.body.imagen || '');

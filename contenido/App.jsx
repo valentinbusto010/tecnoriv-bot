@@ -451,7 +451,9 @@ const TIPOS_SLIDE = { portada: "Portada", texto: "Texto", lista: "Lista", produc
 
 // ─── EDITOR DE SLIDES: textos + foto de cada imagen ──────────────────────────
 // Qué slides llevan foto de fondo/producto.
-const llevaFoto = (s, formato) => ["portada", "producto", "comparativa"].includes(s.tipo) || (s.tipo === "texto" && Boolean(s.producto_id)) || (s.tipo === "cta" && formato === "historias");
+// Todas las slides aceptan una foto elegida a mano; en las de texto, lista y cierre va de fondo oscurecida.
+const llevaFoto = () => true;
+const fotoPropia = (s, formato) => ["portada", "producto", "comparativa"].includes(s.tipo) || (s.tipo === "texto" && Boolean(s.producto_id)) || (s.tipo === "cta" && formato === "historias");
 
 async function achicarImagen(file, lado = 1600) {
   const url = URL.createObjectURL(file);
@@ -551,7 +553,7 @@ function EditorSlides({ p, datos, ocupado, onCancelar, onRehacer, onSucio }) {
             {p.imagenes[i] && <img src={p.imagenes[i].imagen} alt="" style={{ width: "100%", borderRadius: "8px", display: "block" }} />}
             {llevaFoto(s, p.formato) && (
               <button onClick={() => setEligiendo(i)} style={{ marginTop: "6px", width: "100%", position: "relative", padding: 0, borderRadius: "8px", overflow: "hidden", cursor: "pointer", border: s.foto ? "2px solid #1EB6FF" : "1px dashed rgba(96,165,250,0.6)", background: "rgba(0,102,255,0.08)", color: "#60a5fa", fontSize: "11px", fontWeight: 700, fontFamily: "inherit" }}>
-                {s.foto ? <img src={s.foto} alt="" style={{ width: "100%", height: 54, objectFit: "cover", display: "block" }} /> : <div style={{ padding: "8px 4px" }}>📷 Cambiar foto</div>}
+                {s.foto ? <img src={s.foto} alt="" style={{ width: "100%", height: 54, objectFit: "cover", display: "block" }} /> : <div style={{ padding: "8px 4px" }}>📷 {fotoPropia(s, p.formato) ? "Cambiar foto" : "Agregar foto"}</div>}
                 {s.foto && <span style={{ position: "absolute", inset: "auto 0 0 0", background: "rgba(0,0,0,0.65)", color: "#fff", padding: "2px" }}>📷 Cambiar</span>}
               </button>
             )}

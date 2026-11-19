@@ -57,6 +57,12 @@ function precioSvg(p, promo, { x = M, y, tam = 110 }) {
   return s;
 }
 
+// Foto elegida a mano en una slide de texto: de fondo, bien oscurecida para que se lea todo el texto.
+async function fondoManual(foto, W, H) {
+  const base = await fondoFoto(foto, W, H, 0.97);
+  return sharp(base).composite([{ input: svg(W, H, '<rect width="100%" height="100%" fill="#000" fill-opacity="0.55"/>') }]).png().toBuffer();
+}
+
 // ───────── slides ─────────
 // Cada uno recibe: s (textos del slide), H (alto), ctx { n, total, fotos, productos, promo, formato }
 
@@ -75,7 +81,8 @@ async function slidePortada(s, H, ctx) {
 }
 
 async function slideTexto(s, H, ctx) {
-  const base = await lienzo(W, H);
+  const manual = ctx.fotoManual();
+  const base = manual ? await fondoManual(manual, W, H) : await lienzo(W, H);
   const historia = H > 1400;
   const y0 = historia ? 300 : 190;
   const t = titular(s.titular, s.destacada, { y: y0, tamMax: historia ? 130 : 112 });
@@ -83,7 +90,7 @@ async function slideTexto(s, H, ctx) {
   const capas = [];
   let out = rotulo(sinEmoji(s.kicker) || negocio.nombre, M, historia ? 200 : 120) + contador(ctx.n, ctx.total, H) + t.svg + c.svg;
   // Si el slide habla de un producto y queda lugar, va su foto abajo.
-  const foto = ctx.fotoDe(s.producto_id);
+  const foto = manual ? null : ctx.fotoDe(s.producto_id);
   const arribaFoto = c.abajo + 70;
   const abajoFoto = H - (historia ? 220 : 130);
   if (foto && abajoFoto - arribaFoto >= 280) {
@@ -94,7 +101,8 @@ async function slideTexto(s, H, ctx) {
 }
 
 async function slideLista(s, H, ctx) {
-  const base = await lienzo(W, H);
+  const manual = ctx.fotoManual();
+  const base = manual ? await fondoManual(manual, W, H) : await lienzo(W, H);
   const historia = H > 1400;
   const t = titular(s.titular, s.destacada, { y: historia ? 300 : 190, tamMax: historia ? 120 : 104 });
   const items = (s.items || []).map(sinEmoji).filter(Boolean).slice(0, 6);
@@ -139,7 +147,8 @@ async function slideComparativa(s, H, ctx) {
   const a = ctx.producto(s.producto_id);
   const b = ctx.producto(s.producto_id_b);
   if (!a || !b) return slideLista(s, H, ctx);
-  const base = await lienzo(W, H);
+  const manual = ctx.fotoManual();
+  const base = manual ? await fondoManual(manual, W, H) : await lienzo(W, H);
   const historia = H > 1400;
   const t = titular(s.titular, s.destacada, { y: historia ? 300 : 190, tamMax: 100 });
   const colW = (W - M * 2 - 32) / 2;
@@ -173,7 +182,7 @@ async function slideComparativa(s, H, ctx) {
 
 async function slideCta(s, H, ctx) {
   const historia = H > 1400;
-  const foto = historia ? ctx.fotoPrincipal : null;
+  const foto = ctx.fotoManual() || (historia ? ctx.fotoPrincipal : null);
   const base = foto ? await fondoFoto(foto, W, H, 0.97) : await lienzo(W, H);
   const capas = foto ? [{ input: svg(W, H, '<rect width="100%" height="100%" fill="#000" fill-opacity="0.4"/>') }] : [];
   const lineas = s.titular?.length ? s.titular : ['¿CÓMO', 'COMPRO?'];
@@ -345,6 +354,8 @@ async function dibujarGuion({ formato, slides, productos, promo, galeria = null 
     formato, promo, total: slides.length,
     producto: (id) => productos.find((p) => p.id === Number(id)) || null,
     fotoDe: (id) => (id ? siguiente(id) : null),
+    // Foto elegida a mano para esta slide (se usa una vez). Las slides sin foto propia la ponen de fondo.
+    fotoManual: () => { const f = forzada; forzada = null; return f; },
   };
   // Cada vez que una slide pide la foto principal, toma la siguiente del primer producto.
   Object.defineProperty(ctx, 'fotoPrincipal', { get: () => (primera || forzada ? siguiente(primera) : null), configurable: true });

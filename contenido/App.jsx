@@ -474,6 +474,14 @@ function ElegirFoto({ productoIds, nombres, actual, onElegir, onClose }) {
   useEffect(() => { cargar(); }, [cargar]);
   const subir = async (e) => {
     const archivos = [...(e.target.files || [])]; e.target.value = "";
+    setError("");
+    // Publicación sin producto (tips, promo general): la foto se sube suelta y va directo a la slide.
+    if (!productoIds.length) {
+      if (!archivos[0]) return;
+      setSubiendo("Subiendo…");
+      try { const r = await api("/galeria/libre", "POST", { imagen: await achicarImagen(archivos[0]) }); setSubiendo(""); return onElegir(r.url); }
+      catch (err) { setSubiendo(""); return setError(err.message); }
+    }
     if (!filtro) return setError("Elegí primero de qué producto es la foto");
     let ultima = null;
     for (let i = 0; i < archivos.length; i++) {
@@ -500,7 +508,7 @@ function ElegirFoto({ productoIds, nombres, actual, onElegir, onClose }) {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: "8px" }}>
             <label style={{ aspectRatio: "3/4", borderRadius: "10px", border: "1.5px dashed rgba(96,165,250,0.5)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "4px", color: "#60a5fa", fontSize: "12px", fontWeight: 600, cursor: subiendo ? "default" : "pointer", textAlign: "center", padding: "6px" }}>
               <span style={{ fontSize: "22px" }}>+</span>{subiendo || "Subir foto"}
-              <input type="file" accept="image/*" multiple onChange={subir} disabled={Boolean(subiendo)} style={{ display: "none" }} />
+              <input type="file" accept="image/*" multiple={productoIds.length > 0} onChange={subir} disabled={Boolean(subiendo)} style={{ display: "none" }} />
             </label>
             {fotos === null && <div style={{ color: "#6b7280", fontSize: "13px", alignSelf: "center" }}>Cargando…</div>}
             {unicas.map(f => (
@@ -510,7 +518,7 @@ function ElegirFoto({ productoIds, nombres, actual, onElegir, onClose }) {
               </button>
             ))}
           </div>
-          {fotos && !unicas.length && <div style={{ color: "#6b7280", fontSize: "13px", marginTop: "10px" }}>Este producto no tiene fotos en la galería todavía. Subí una con el botón +.</div>}
+          {fotos && !unicas.length && <div style={{ color: "#6b7280", fontSize: "13px", marginTop: "10px" }}>{productoIds.length ? "Este producto no tiene fotos en la galería todavía. Subí una con el botón +." : "Esta publicación no es de un producto: subí la foto que quieras con el botón +."}</div>}
           {error && <div style={{ color: "#fca5a5", fontSize: "13px", marginTop: "10px" }}>{error}</div>}
         </div>
       </div>

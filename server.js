@@ -350,7 +350,7 @@ function perfilSugerido(req) {
     `Tienda de tecnología en ${negocio.ciudad}: smartwatches, auriculares inalámbricos, AirPods, cargadores y accesorios para Android y iPhone.`,
     `✅ ${negocio.garantia}`,
     '🚚 Envío gratis dentro de Río Cuarto o retiro a coordinar',
-    negocio.descuentoEfectivo ? `💵 ${negocio.descuentoEfectivo}% OFF pagando en efectivo` : '',
+    negocio.descuentoEfectivo ? `💵 ${negocio.descuentoEfectivo}% OFF pagando en efectivo${(negocio.efectivoEspecial || []).map((r) => ` (${r.nombre.toLowerCase()} ${r.descuento}%)`).join('')}` : '',
     '💳 Efectivo, transferencia, Mercado Pago y tarjetas',
     `🕘 ${negocio.horario}`,
     'Catálogo con precios actualizados en nuestra web 👇',

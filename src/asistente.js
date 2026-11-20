@@ -177,7 +177,7 @@ async function fotoNegocio() {
     const precio = Number(p.precio) || 0;
     const final = promo?.descuento ? precioPromo(precio, promo) : precio;
     const margen = p.costo ? Math.round(((final - p.costo) / final) * 100) + '%' : 's/costo';
-    return [p.id, p.nombre, p.categoria || '-', fmt(precio), final !== precio ? fmt(final) : '', fmt(precioEfectivo(final, promo)), p.costo ? fmt(p.costo) : '-', margen, p.stock, p.alerta, vendidas30[p.id] || 0, p.activo === false ? 'PAUSADO' : '', p.imagen_url ? 'foto' : 'SIN FOTO'].join(' | ');
+    return [p.id, p.nombre, p.categoria || '-', fmt(precio), final !== precio ? fmt(final) : '', fmt(precioEfectivo(final, promo, p)), p.costo ? fmt(p.costo) : '-', margen, p.stock, p.alerta, vendidas30[p.id] || 0, p.activo === false ? 'PAUSADO' : '', p.imagen_url ? 'foto' : 'SIN FOTO'].join(' | ');
   });
   const lineasPed = pedidos.slice(0, 150).map((p) => [p.id, p.fecha, p.cliente, p.producto || nombreProd[p.producto_id] || '-', p.cantidad, fmt(p.monto), p.costo != null ? fmt(p.costo) : '-', p.estado, p.pago || '-', p.canal || '-'].join(' | '));
   const lineasGas = (gas.data || []).slice(0, 80).map((g) => [g.fecha, g.categoria, fmt(g.monto), g.descripcion].join(' | '));
@@ -192,7 +192,7 @@ async function fotoNegocio() {
 MES EN CURSO (calculado): ventas ${fmt(tot.ventas)} en ${tot.pedidos} pedidos (${tot.unidades} unidades) · costo de lo vendido ${fmt(tot.costoVendido)} · gastos operativos ${fmt(tot.gastosOperativos)} · compras de stock ${fmt(tot.comprasStock)} · GANANCIA REAL ${fmt(tot.ganancia)}${tot.sinCosto ? ` (ojo: ${tot.sinCosto} ventas sin costo cargado)` : ''} · pendientes de entregar: ${pedidos.filter((p) => p.estado === 'pendiente').length}.
 Clientes registrados: ${cli.count ?? '?'}.
 PROMO: ${promo ? `${promo.descuento}% OFF hasta ${promo.hasta}${promo.regaloId ? ` + regalo "${nombreProd[promo.regaloId] || promo.regaloId}" en ${promo.regaloCategoria}` : ''}` : 'ninguna vigente'}.
-Descuento por pago en efectivo hoy: ${efectivoVigente(promo)}%${promo?.descuento && !efectivoVigente(promo) ? ' (no se suma a la promo: durante la promo efectivo paga el precio promo)' : ''}.
+Descuento por pago en efectivo hoy: ${efectivoVigente(promo)}%${efectivoVigente(promo) ? (negocio.efectivoEspecial || []).map((r) => ` (${r.nombre.toLowerCase()}: ${r.descuento}%)`).join('') : ''}${promo?.descuento && !efectivoVigente(promo) ? ' (no se suma a la promo: durante la promo efectivo paga el precio promo)' : ''}.
 
 PRODUCTOS (id | nombre | categoría | precio lista | precio con promo | precio efectivo | costo | margen | stock | alerta | vendidas 30d | estado | foto):
 ${lineasProd.join('\n')}

@@ -368,11 +368,11 @@ async function beneficioDe(telefono) {
 async function contextoCliente(telefono) {
   const b = await beneficioDe(telefono).catch(() => null);
   if (!b) return '';
-  const [{ data: p }, promo] = await Promise.all([supabase.from('productos').select('precio').eq('id', b.producto_id).maybeSingle(), promoVigente()]);
+  const [{ data: p }, promo] = await Promise.all([supabase.from('productos').select('precio, nombre, categoria').eq('id', b.producto_id).maybeSingle(), promoVigente()]);
   if (!p) return '';
   const base = promo?.descuento ? precioPromo(p.precio, promo) : Number(p.precio);
   const precio = Math.round(base * (1 - b.descuento / 100));
-  return `\nBENEFICIO DE ESTE CLIENTE (se lo ofrecimos por WhatsApp): ${b.nombre} con ${b.descuento}% OFF hasta el ${fechaCorta(b.hasta)} → ${fmt(precio)}${efectivoVigente(promo) ? ` (efectivo ${fmt(precioEfectivo(precio, promo))})` : ''}. Si lo quiere, respetá ese precio en la confirmación y en la marca [VENTA].`;
+  return `\nBENEFICIO DE ESTE CLIENTE (se lo ofrecimos por WhatsApp): ${b.nombre} con ${b.descuento}% OFF hasta el ${fechaCorta(b.hasta)} → ${fmt(precio)}${efectivoVigente(promo, p) ? ` (efectivo ${fmt(precioEfectivo(precio, promo, p))})` : ''}. Si lo quiere, respetá ese precio en la confirmación y en la marca [VENTA].`;
 }
 
 // ───────── PROGRAMADOR ─────────

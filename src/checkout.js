@@ -85,7 +85,7 @@ async function armarLineas(items, pago) {
     if (!p || !(Number(p.precio) > 0)) throw error('Uno de los productos ya no está disponible. Actualizá el catálogo y probá de nuevo.');
     if ((Number(p.stock) || 0) < n) throw error((Number(p.stock) || 0) <= 0 ? `Se agotó: ${p.nombre}. Sacalo del carrito para seguir.` : `No hay stock suficiente de ${p.nombre}. Probá con menos unidades.`);
     let unidad = promo?.descuento ? precioPromo(p.precio, promo) : Number(p.precio);
-    if (pago === 'efectivo') unidad = precioEfectivo(unidad, promo);
+    if (pago === 'efectivo') unidad = precioEfectivo(unidad, promo, p);
     lineas.push({ producto_id: p.id, producto: p.nombre, cantidad: n, monto: unidad * n, regalo: false });
     if (promo?.regaloId && p.id !== promo.regaloId && (p.categoria || '') === promo.regaloCategoria) paraRegalo += n;
   }

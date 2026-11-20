@@ -25,6 +25,8 @@ module.exports = {
   // Descuento pagando en efectivo (%). Se aplica sobre el precio que ve el cliente (incluida la promo, si hay).
   // Lo usan el catálogo, el bot y el registro de ventas. Poné 0 para sacarlo.
   descuentoEfectivo: 10,
+  // Descuentos en efectivo distintos para algunos productos: si el nombre o la categoría contiene la palabra, usa ese %.
+  efectivoEspecial: [{ palabra: 'funda', nombre: 'Fundas', descuento: 15 }],
   // ¿El descuento en efectivo se suma a una promo con % OFF? false = durante la promo el efectivo paga lo mismo.
   efectivoConPromo: false,
   horario: 'Lunes a sábado de 9 a 20 hs',

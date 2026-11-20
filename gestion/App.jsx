@@ -79,6 +79,14 @@ const promoDe = (aj) => {
   return { descuento: d, hasta, regaloId, regaloCategoria: aj.promo_regalo_categoria || "Wearables" };
 };
 const precioPromo = (precio, promo) => promo && promo.descuento ? Math.round(Number(precio) * (1 - promo.descuento / 100)) : Number(precio);
+// % en efectivo de un producto, con las reglas del servidor (general y especiales, ej. fundas 15%). 0 si hoy no corre.
+const pctEfectivo = (p, aj) => {
+  const r = aj?._efectivo; if (!r || !p) return 0;
+  const t = `${p.nombre || ""} ${p.categoria || ""}`.toLowerCase();
+  const e = (r.especiales || []).find(x => t.includes(String(x.palabra).toLowerCase()));
+  return Number(e ? e.descuento : r.general) || 0;
+};
+const precioEfectivoDe = (precio, p, aj) => { const d = pctEfectivo(p, aj); return d ? Math.round(Number(precio) * (1 - d / 100)) : Number(precio); };
 const REVISAR_COLOR = { "sin costo": "#6b7280", "margen bajo": "#ef4444", "costo viejo": "#f59e0b" };
 const pctDe = (a, b) => b ? Math.round((a / b) * 100) + "%" : "—";
 const colorMargen = (pct, aj) => pct >= aj.margen_objetivo ? "#10b981" : pct >= aj.margen_objetivo / 2 ? "#f59e0b" : "#ef4444";
@@ -284,9 +292,16 @@ const Pedidos = ({ pedidos, productos, accion, ajustes }) => {
     for (const x of pedidos.filter(y => y.compra === p.compra)) await api(`/pedidos/${x.id}`, "PATCH", { pago_estado: "aprobado" });
   });
 
-  const elegirProducto = (id, cantidad = form.cantidad) => {
+  // Monto sugerido: precio promo y, si paga en efectivo, con su descuento (las fundas tienen el suyo).
+  const montoDe = (id, cantidad, pago) => {
     const prod = productos.find(p => String(p.id) === String(id));
-    setForm({ ...form, producto_id: id, cantidad, monto: prod ? precioPromo(prod.precio, promo) * (Number(cantidad) || 1) : form.monto });
+    if (!prod) return null;
+    const unidad = precioPromo(prod.precio, promo);
+    return (/efectivo/i.test(pago || "") ? precioEfectivoDe(unidad, prod, ajustes) : unidad) * (Number(cantidad) || 1);
+  };
+  const elegirProducto = (id, cantidad = form.cantidad) => {
+    const m = montoDe(id, cantidad, form.pago);
+    setForm({ ...form, producto_id: id, cantidad, monto: m ?? form.monto });
   };
 
   const guardar = async () => {
@@ -350,7 +365,7 @@ const Pedidos = ({ pedidos, productos, accion, ajustes }) => {
             {["Instagram", "WhatsApp", "Marketplace", "Web", "Presencial"].map(c => <option key={c}>{c}</option>)}
           </Select>
           <Input label="Entrega (opcional)" value={form.entrega} onChange={e => setForm({ ...form, entrega: e.target.value })} placeholder="Envío a ... / retiro" />
-          <Input label="Pago (opcional)" value={form.pago} onChange={e => setForm({ ...form, pago: e.target.value })} placeholder="Transferencia, efectivo..." />
+          <Input label="Pago (opcional)" value={form.pago} onChange={e => { const pago = e.target.value; const m = montoDe(form.producto_id, form.cantidad, pago); setForm({ ...form, pago, monto: m ?? form.monto }); }} placeholder="Transferencia, efectivo..." />
           <Input label="Fecha" type="date" value={form.fecha} onChange={e => setForm({ ...form, fecha: e.target.value })} />
           <Botones onCancel={() => setModal(false)} onOk={guardar} okLabel="Guardar pedido" disabled={!form.cliente || !form.producto_id || !form.monto} />
         </Modal>
@@ -545,6 +560,7 @@ const Stock = ({ productos, ajustes, accion, filtroInicial, faltaMargen }) => {
                       </div>
                       <div style={{ color: "#6b7280", fontSize: "12px", marginTop: "3px" }}>
                         {fmt(p.precio)}
+                        {pctEfectivo(p, ajustes) > 0 && <span style={{ color: "#34d399" }}> · 💵 {fmt(precioEfectivoDe(p.precio, p, ajustes))} efectivo ({pctEfectivo(p, ajustes)}%)</span>}
                         {m ? <> · costo {fmt(p.costo)} · <span style={{ color: colorMargen(m.pct, ajustes), fontWeight: 700 }}>ganás {fmt(m.unit)} ({m.pct}%)</span></> : " · sin costo"}
                         {rev === "margen bajo" && sug && <> · <span style={{ color: "#60a5fa" }}>sugerido {fmt(sug)}</span></>}
                       </div>
@@ -1471,7 +1487,7 @@ export default function App() {
   if (!datos) return <Shell><div style={{ padding: "40px", textAlign: "center", color: "#6b7280" }}>{aviso ? <span style={{ color: "#ef4444" }}>{aviso.texto}</span> : "Cargando…"}</div></Shell>;
 
   const { pedidos, productos, gastos, clientes, faltaMargen } = datos;
-  const ajustes = { margen_objetivo: 40, dias_costo_viejo: 30, redondeo_precio: 500, promo_descuento: 0, promo_hasta: "", promo_regalo_id: 0, promo_regalo_categoria: "Wearables", ...(datos.ajustes || {}) };
+  const ajustes = { margen_objetivo: 40, dias_costo_viejo: 30, redondeo_precio: 500, promo_descuento: 0, promo_hasta: "", promo_regalo_id: 0, promo_regalo_categoria: "Wearables", ...(datos.ajustes || {}), _efectivo: datos.efectivo || null };
   const irA = (t, filtro = null) => { setTab(t); setFiltroStock(filtro); window.scrollTo(0, 0); };
   const pendientesCount = pedidos.filter(p => p.estado === "pendiente").length;
   const tabs = [

@@ -3,7 +3,7 @@
 const express = require('express');
 const axios = require('axios');
 const { supabase } = require('./datos');
-const { promoVigente, precioPromo, precioEfectivo, invalidarAjustes } = require('./promo');
+const { promoVigente, precioPromo, precioEfectivo, invalidarAjustes, reglasEfectivo } = require('./promo');
 // (instagram.js se carga recién al generar contenido)
 
 const CATEGORIAS_GASTO = ['Stock', 'Marketing', 'Envíos', 'Operativo', 'Impuestos', 'Otro'];
@@ -152,7 +152,7 @@ async function registrarVenta(telefono, resumen, nombrePerfil) {
   }
   // Pago en efectivo: se registra con el descuento por efectivo (el regalo sigue en $0).
   if (v.producto && !v.regalo && /efectivo/i.test(v.pago || '')) {
-    v.monto = precioEfectivo(v.monto / v.cantidad, promo) * v.cantidad;
+    v.monto = precioEfectivo(v.monto / v.cantidad, promo, v.producto) * v.cantidad;
   }
 
   // Evita cargar dos veces la misma venta si el cliente vuelve a confirmar.
@@ -358,7 +358,7 @@ function router(chequearClave, explicarError = (e) => e.message) {
     // Ajustes del margen: si todavía no se corrió supabase-margen.sql, usa los valores por defecto.
     const aj = await supabase.from('ajustes').select('clave, valor').not('clave', 'in', AJUSTES_OCULTOS);
     const ajustes = { ...AJUSTES_DEFECTO, ...Object.fromEntries((aj.data || []).map((a) => [a.clave, AJUSTES_TEXTO.includes(a.clave) ? String(a.valor ?? '') : Number(a.valor)])) };
-    res.json({ productos: productos.data, pedidos: pedidos.data, gastos: gastos.data, clientes: clientes.data, ajustes, faltaMargen: Boolean(aj.error) });
+    res.json({ productos: productos.data, pedidos: pedidos.data, gastos: gastos.data, clientes: clientes.data, ajustes, faltaMargen: Boolean(aj.error), efectivo: reglasEfectivo(await promoVigente()) });
   });
 
   r.put('/ajustes/:clave', async (req, res) => {

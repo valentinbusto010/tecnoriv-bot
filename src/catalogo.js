@@ -35,7 +35,8 @@ async function armarCatalogo() {
         categoria: p.categoria || 'Otros',
         precio: final,
         precio_anterior: final < precio ? precio : null,
-        precio_efectivo: precioEfectivo(final, promo),
+        precio_efectivo: precioEfectivo(final, promo, p),
+        desc_efectivo: efectivoVigente(promo, p),
         cuotas: Number(p.cuotas_sin_interes) || 0,
         descripcion: p.descripcion || '',
         imagen: p.imagen_url || null,
@@ -64,6 +65,7 @@ async function armarCatalogo() {
       pagos: negocio.mediosDePago,
       horario: negocio.horario,
       descuento_efectivo: efectivoVigente(promo),
+      descuento_efectivo_max: Math.max(efectivoVigente(promo), ...productos.map((x) => x.desc_efectivo || 0)),
     },
     promo: promo ? { descuento: promo.descuento, hasta: fechaCorta(promo.hasta), regalo } : null,
     // Medios de pago del carrito. Tarjeta: 'online' (Mercado Pago, con MP_ACCESS_TOKEN en Render) o 'link' (se manda por WhatsApp).

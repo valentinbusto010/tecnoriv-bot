@@ -60,7 +60,7 @@ const Foto = ({ p, alto }) => (
   </div>
 );
 
-const Precio = ({ p, grande, descEfectivo }) => (
+const Precio = ({ p, grande, descEfectivo: descGeneral }) => { const descEfectivo = p.desc_efectivo ?? descGeneral; return (
   <div>
     {p.precio_anterior && <div style={{ color: "#6b7280", fontSize: grande ? "15px" : "12px", textDecoration: "line-through" }}>{fmt(p.precio_anterior)}</div>}
     <div style={{ fontSize: grande ? "30px" : "19px", fontWeight: 800, letterSpacing: "-0.02em", color: "#fff" }}>{fmt(p.precio)}</div>
@@ -72,7 +72,7 @@ const Precio = ({ p, grande, descEfectivo }) => (
     )}
     {p.cuotas > 0 && <div style={{ color: "#10b981", fontSize: grande ? "14px" : "11px", fontWeight: 700 }}>{p.cuotas} cuotas sin interés</div>}
   </div>
-);
+); };
 
 const Cantidad = ({ n, onMas, onMenos }) => (
   <div style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "10px", padding: "3px" }}>
@@ -165,7 +165,10 @@ export default function App() {
   const items = Object.entries(carrito).map(([id, n]) => ({ p: productos.find(x => String(x.id) === id), n })).filter(x => x.p);
   const total = items.reduce((a, x) => a + x.p.precio * x.n, 0);
   const totalEfectivo = items.reduce((a, x) => a + (x.p.precio_efectivo ?? x.p.precio) * x.n, 0);
-  const descEf = datos?.negocio?.descuento_efectivo || 0;
+  // % en efectivo del carrito: si todos los productos tienen el mismo, se muestra; si se mezclan (ej. fundas 15% y relojes 10%), solo el total.
+  const pctsCarrito = [...new Set(items.map(x => x.p.desc_efectivo ?? (datos?.negocio?.descuento_efectivo || 0)).filter(Boolean))];
+  const descEf = pctsCarrito.length ? Math.max(...pctsCarrito) : 0;
+  const descEfTxt = pctsCarrito.length === 1 ? `${pctsCarrito[0]}% OFF` : "con descuento";
   const unidades = items.reduce((a, x) => a + x.n, 0);
   const poner = (id, n) => setCarrito(c => { const k = String(id); const o = { ...c }; if (n <= 0) delete o[k]; else o[k] = Math.min(n, 20); return o; });
   const wa = datos?.negocio?.wa;
@@ -175,7 +178,7 @@ export default function App() {
     "",
     ...items.map(x => `• ${x.n > 1 ? x.n + "x " : ""}${x.p.nombre} — ${fmt(x.p.precio * x.n)}`),
     "",
-    `Total: ${fmt(total)}${descEf && totalEfectivo < total ? ` (en efectivo: ${fmt(totalEfectivo)}, ${descEf}% OFF)` : ""}`,
+    `Total: ${fmt(total)}${descEf && totalEfectivo < total ? ` (en efectivo: ${fmt(totalEfectivo)}, ${descEfTxt})` : ""}`,
     "¿Me confirman disponibilidad y cómo seguimos?",
   ].join("\n");
   const ir = (v) => {
@@ -234,7 +237,7 @@ export default function App() {
     const medios = [
       pagos.tarjeta && { id: "tarjeta", ic: "tarjeta", t: "Tarjeta de crédito o débito", s: pagos.tarjeta === "online" ? "Pagás ahora, seguro con Mercado Pago" : "Te mandamos el link de pago por WhatsApp" },
       pagos.transferencia && { id: "transferencia", ic: "banco", t: "Transferencia", s: "Te mostramos el alias al confirmar" },
-      pagos.efectivo && { id: "efectivo", ic: "billete", t: "Efectivo", s: descEf > 0 && totalEfectivo < total ? `${descEf}% OFF: pagás ${fmt(totalEfectivo)} al recibir` : "Pagás al recibir o retirar" },
+      pagos.efectivo && { id: "efectivo", ic: "billete", t: "Efectivo", s: descEf > 0 && totalEfectivo < total ? `${descEfTxt}: pagás ${fmt(totalEfectivo)} al recibir` : "Pagás al recibir o retirar" },
     ].filter(Boolean);
     const paso = vista === "carrito" ? 1 : vista === "datos" ? 2 : 3;
     const P = pedido;
@@ -324,7 +327,7 @@ export default function App() {
             </div>
             {descEf > 0 && totalEfectivo < total && (
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", margin: "0 2px 4px", color: "#34d399" }}>
-                <span style={{ fontSize: "13px", fontWeight: 600 }}>💵 Pagando en efectivo ({descEf}% OFF)</span>
+                <span style={{ fontSize: "13px", fontWeight: 600 }}>💵 Pagando en efectivo ({descEfTxt})</span>
                 <span style={{ fontSize: "18px", fontWeight: 800 }}>{fmt(totalEfectivo)}</span>
               </div>
             )}
@@ -456,7 +459,7 @@ export default function App() {
 
         {/* Beneficios */}
         <div className="tr-beneficios">
-          {[["camion", "Envío gratis", "Dentro de Río Cuarto"], ["escudo", negocio.garantia, "En todos los productos"], ["tarjeta", negocio.descuento_efectivo ? `${negocio.descuento_efectivo}% OFF en efectivo` : "Todos los medios de pago", negocio.descuento_efectivo ? "También transferencia, MP y tarjetas" : "Efectivo, transferencia, MP y tarjetas"]].map(([ic, t, s]) => (
+          {[["camion", "Envío gratis", "Dentro de Río Cuarto"], ["escudo", negocio.garantia, "En todos los productos"], ["tarjeta", negocio.descuento_efectivo ? (negocio.descuento_efectivo_max > negocio.descuento_efectivo ? `Hasta ${negocio.descuento_efectivo_max}% OFF en efectivo` : `${negocio.descuento_efectivo}% OFF en efectivo`) : "Todos los medios de pago", negocio.descuento_efectivo ? "También transferencia, MP y tarjetas" : "Efectivo, transferencia, MP y tarjetas"]].map(([ic, t, s]) => (
             <div key={t} style={{ ...card, padding: "12px 14px", display: "flex", gap: "12px", alignItems: "center", flexShrink: 0 }}>
               <span style={{ color: "#1EB6FF", flexShrink: 0 }}><Icon name={ic} size={20} /></span>
               <div><div style={{ fontWeight: 700, fontSize: "13px" }}>{t}</div><div style={{ color: "#6b7280", fontSize: "12px" }}>{s}</div></div>

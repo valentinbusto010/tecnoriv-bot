@@ -15,7 +15,7 @@ async function armarInstrucciones(productos) {
   const precioTxt = (p) => {
     const base = promo && promo.descuento ? precioPromo(p.precio, promo) : Number(p.precio);
     const txt = promo && promo.descuento ? `${formatearPrecio(p.precio)} → PROMO ${formatearPrecio(base)}` : formatearPrecio(base);
-    return dEfectivo ? `${txt} (efectivo ${formatearPrecio(precioEfectivo(base, promo))})` : txt;
+    return efectivoVigente(promo, p) ? `${txt} (efectivo ${formatearPrecio(precioEfectivo(base, promo, p))})` : txt;
   };
 
   const catalogo = productos.length
@@ -117,7 +117,7 @@ REGLAS:
 
 DATOS DEL NEGOCIO:
 - Medios de pago: ${negocio.mediosDePago}${dEfectivo ? `
-- DESCUENTO EN EFECTIVO: pagando en efectivo hay ${dEfectivo}% OFF. En el catálogo cada precio trae entre paréntesis el precio en efectivo. Cuando cotices, mencioná los dos (ej: "$12.000, o $10.800 pagando en efectivo"). Si el cliente elige efectivo, el total y la marca [VENTA] van con el precio en efectivo.` : ''}
+- DESCUENTO EN EFECTIVO: pagando en efectivo hay ${dEfectivo}% OFF${(negocio.efectivoEspecial || []).map((r) => `, y en ${r.nombre.toLowerCase()} ${r.descuento}% OFF`).join('')}. Cada producto ya trae su precio en efectivo calculado: usá ese. En el catálogo cada precio trae entre paréntesis el precio en efectivo. Cuando cotices, mencioná los dos (ej: "$12.000, o $10.800 pagando en efectivo"). Si el cliente elige efectivo, el total y la marca [VENTA] van con el precio en efectivo.` : ''}
 - Envíos: ${negocio.envios}
 - Entregas: ${negocio.entregas}
 - Retiro: ${negocio.retiro}

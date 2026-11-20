@@ -35,17 +35,29 @@ async function promoVigente() {
 const precioPromo = (precio, promo) =>
   promo && promo.descuento ? Math.round(Number(precio) * (1 - promo.descuento / 100)) : Number(precio);
 
-// % de descuento en efectivo que corre hoy: si hay promo con % OFF y negocio.efectivoConPromo es false, no se suma (0).
-const efectivoVigente = (promo) =>
-  promo && promo.descuento && !negocio.efectivoConPromo ? 0 : Number(negocio.descuentoEfectivo) || 0;
+// % de descuento en efectivo de un producto (sin mirar la promo): el especial si coincide (ej. fundas), si no el general.
+const descuentoEfectivoDe = (producto = null) => {
+  const txt = `${producto?.nombre || ''} ${producto?.categoria || ''}`.toLowerCase();
+  const esp = producto ? (negocio.efectivoEspecial || []).find((r) => txt.includes(String(r.palabra).toLowerCase())) : null;
+  return esp ? Number(esp.descuento) || 0 : Number(negocio.descuentoEfectivo) || 0;
+};
 
-// Precio pagando en efectivo sobre el precio dado (ya con promo). Pasá la promo vigente para respetar si se suma o no.
-const precioEfectivo = (precio, promo = null) => {
-  const d = efectivoVigente(promo);
+// % de descuento en efectivo que corre hoy: si hay promo con % OFF y negocio.efectivoConPromo es false, no se suma (0).
+// Con producto devuelve el de ese producto (las fundas tienen el suyo); sin producto, el general.
+const efectivoVigente = (promo, producto = null) =>
+  promo && promo.descuento && !negocio.efectivoConPromo ? 0 : descuentoEfectivoDe(producto);
+
+// Reglas para mostrar en paneles: { general, especiales: [{ palabra, nombre, descuento }] } o null si hoy no corre.
+const reglasEfectivo = (promo) =>
+  promo && promo.descuento && !negocio.efectivoConPromo ? null : { general: Number(negocio.descuentoEfectivo) || 0, especiales: negocio.efectivoEspecial || [] };
+
+// Precio pagando en efectivo sobre el precio dado (ya con promo). Pasá la promo vigente y el producto.
+const precioEfectivo = (precio, promo = null, producto = null) => {
+  const d = efectivoVigente(promo, producto);
   return d > 0 ? Math.round(Number(precio) * (1 - d / 100)) : Number(precio);
 };
 
 // "2026-10-31" -> "31/10"
 const fechaCorta = (f) => (f ? `${f.slice(8, 10)}/${f.slice(5, 7)}` : '');
 
-module.exports = { hoyAR, leerAjustes, invalidarAjustes, promoDe, promoVigente, precioPromo, precioEfectivo, efectivoVigente, fechaCorta };
+module.exports = { hoyAR, leerAjustes, invalidarAjustes, promoDe, promoVigente, precioPromo, precioEfectivo, efectivoVigente, descuentoEfectivoDe, reglasEfectivo, fechaCorta };

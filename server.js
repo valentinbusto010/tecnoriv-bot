@@ -231,8 +231,26 @@ app.post('/webhook', async (req, res) => {
     }
   } catch (error) {
     console.error('Error:', error.response?.data || error.message);
+    // Si la IA falla (clave vencida, sin saldo, caída), el cliente no queda sin respuesta y el dueño se entera.
+    const from = req.body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.from;
+    if (from && !gestion.esDueno(from) && error.config?.url?.includes('anthropic.com')) await fallaIA(from, error).catch(() => {});
   }
 });
+
+const FALLA_CLIENTE = '¡Hola! Gracias por escribirnos 🙌 En un ratito te respondemos por acá.';
+const fallas = { dueno: 0, clientes: new Map() };
+async function fallaIA(from, error) {
+  const ahora = Date.now();
+  if (ahora - (fallas.clientes.get(from) || 0) > 3 * 3600e3) { // como mucho un aviso por cliente cada 3 h
+    fallas.clientes.set(from, ahora);
+    await enviarWhatsApp(from, FALLA_CLIENTE);
+    await guardarMensaje(from, 'assistant', FALLA_CLIENTE);
+  }
+  if (ahora - fallas.dueno > 3600e3) { // al dueño, como mucho uno por hora
+    fallas.dueno = ahora;
+    await avisarDueno(`⚠️ EL BOT NO ESTÁ RESPONDIENDO: ${explicarError(error)} Hay un cliente esperando: +${from}`);
+  }
+}
 
 // ================= Panel (Marketplace) =================
 
